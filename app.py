@@ -191,37 +191,40 @@ with col_card:
     alert_box(f"🎯 **System Assessment Tier Status:** {tier}")
     
     st.markdown("---")
+    
+    # --- FIXED LAYOUT ENGINE STARTS HERE ---
     st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
-st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
-
-# Process Explainability engine data tracking 1D elements safely
-shap_output = explainer(profile_payload)
-
-# 🌟 CRITICAL FIX: Explicit [0] array index isolates the first row out of SHAP's nested matrix payload
-feature_impacts = dict(zip(feature_names, shap_output.values[0]))
-
-# Isolate top vectors based on pure positive vs negative scalar thresholds
-top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
-top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
-
-col_str, col_risk = st.columns(2)
-with col_str:
-    st.markdown("🌟 Factors Helping Your Score", unsafe_allow_html=True)
+    st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
+    
+    # Process Explainability engine data tracking 1D elements safely
+    shap_output = explainer(profile_payload)
+    
+    # Target index to extract the raw 1D array out of SHAP's matrix payload
+    feature_impacts = dict(zip(feature_names, shap_output.values))
+    
+    # Isolate top vectors based on pure positive vs negative scalar thresholds
+    top_risks = sorted([item for item in feature_impacts.items() if item > 0.001], key=lambda x: x, reverse=True)[:2]
+    top_strengths = sorted([item for item in feature_impacts.items() if item < -0.001], key=lambda x: x)[:2]
+    
+    # Box 1: Strengths stacked cleanly right under the subtitle
+    st.markdown("### 🌟 Factors Helping Your Score")
     if top_strengths:
         for feat, val in top_strengths:
-            st.markdown(f"✅ {layman_translation[feat]} is helping protect your financial reputation.")
+            st.success(f"✅ **{layman_translation[feat]}** is helping protect your financial reputation.")
     else:
         st.write("No major positive indicators found.")
-
-with col_risk:
-    st.markdown("⚠️ Factors Hurting Your Score", unsafe_allow_html=True)
+        
+    st.markdown(" ") # Creates breathing room spacer
+    
+    # Box 2: Risks stacked cleanly directly under the strengths
+    st.markdown("### ⚠️ Factors Hurting Your Score")
     if top_risks:
         for feat, val in top_risks:
-            st.markdown(f"❌ {layman_translation[feat]} is pulling down your loan eligibility score ranking.")
+            st.error(f"❌ **{layman_translation[feat]}** is pulling down your loan eligibility score ranking.")
     else:
         st.write("Excellent! No active risk flags are dragging down your score.")
-
-# Display Actionable Next Steps
-st.markdown("---")
-st.subheader("💡 Automated Next Steps for the Business")
-st.info(nudge)
+            
+    # Display Actionable Next Steps
+    st.markdown("---")
+    st.subheader("💡 Automated Next Steps for the Business")
+    st.info(nudge)
