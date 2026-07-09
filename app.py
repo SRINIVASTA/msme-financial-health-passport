@@ -106,7 +106,7 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=0, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
-    # 📥 NEW MODIFICATION: Added clean download button routine directly to sidebar
+    # Download button routine directly to sidebar
     st.markdown("---")
     st.subheader("📥 Download Project Dataset")
     st.caption("Click here to download the master 1,200 row synthetic credit database used to build this AI model.")
@@ -159,8 +159,8 @@ profile_payload = pd.DataFrame([{
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
-# Slices row 0, column 1 explicitly to force a clean Python scalar
-prob_default = float(model.predict_proba(profile_payload))
+# 🌟 CRITICAL FIX: Explicit matrix [0, 1] query targets probability scalar securely
+prob_default = float(model.predict_proba(profile_payload)[0, 1])
 health_score = int(300 + (1 - prob_default) * 600)
 
 # Determine final status conditions
@@ -191,13 +191,13 @@ with col_card:
     alert_box(f"🎯 **System Assessment Tier Status:** {tier}")
     
     st.markdown("---")
-st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
+    st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
 st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
 
 # Process Explainability engine data tracking 1D elements safely
 shap_output = explainer(profile_payload)
 
-# Target index to extract the raw 1D array out of SHAP's matrix payload
+# 🌟 CRITICAL FIX: Explicit [0] array index isolates the first row out of SHAP's nested matrix payload
 feature_impacts = dict(zip(feature_names, shap_output.values[0]))
 
 # Isolate top vectors based on pure positive vs negative scalar thresholds
