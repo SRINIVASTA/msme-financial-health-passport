@@ -192,19 +192,19 @@ with col_card:
     
     st.markdown("---")
     
-    # --- FIXED LAYOUT ENGINE STARTS HERE ---
+    # --- FIXED LAYOUT ENGINE & MATHEMATICAL MATRIX TUNING ---
     st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
     # Process Explainability engine data tracking 1D elements safely
     shap_output = explainer(profile_payload)
     
-    # Target index to extract the raw 1D array out of SHAP's matrix payload
-    feature_impacts = dict(zip(feature_names, shap_output.values))
+    # Ensure we safely extract the raw 1D array array out of SHAP's nested matrix payload
+    feature_impacts = dict(zip(feature_names, shap_output.values[0]))
     
-    # Isolate top vectors based on pure positive vs negative scalar thresholds
-    top_risks = sorted([item for item in feature_impacts.items() if item > 0.001], key=lambda x: x, reverse=True)[:2]
-    top_strengths = sorted([item for item in feature_impacts.items() if item < -0.001], key=lambda x: x)[:2]
+    # 🌟 CRITICAL MATH FIX: Explicitly target index [1] to filter and sort by numeric float weights
+    top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
+    top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
     
     # Box 1: Strengths stacked cleanly right under the subtitle
     st.markdown("### 🌟 Factors Helping Your Score")
@@ -223,8 +223,3 @@ with col_card:
             st.error(f"❌ **{layman_translation[feat]}** is pulling down your loan eligibility score ranking.")
     else:
         st.write("Excellent! No active risk flags are dragging down your score.")
-            
-    # Display Actionable Next Steps
-    st.markdown("---")
-    st.subheader("💡 Automated Next Steps for the Business")
-    st.info(nudge)
