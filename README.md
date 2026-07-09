@@ -4,6 +4,12 @@
 An end-to-end AI/ML credit underwriting engine built to onboard **New-to-Credit (NTC)** and **New-to-Bank (NTB)** small businesses. By replacing slow paper trails with live, consent-backed alternative footprints, this platform translates daily digital operations into an instant, bank-ready credit identity passport.
 
 🌐 **Live Interactive Web App:** [Launch Live Streamlit Dashboard](https://msme-financial-health-passport-7smsi6mdtx3jcawyp8qnx9.streamlit.app/))
+## 🖥️ Project Presentation Pitch Deck
+
+[![Pitch Deck PDF](https://shields.io)](https://github.com/SRINIVASTA/msme-financial-health-passport/blob/main/MSME%20Financial%20Health%20Passport.pdf
+)
+
+📌 *Note for Judges: Click the red badge above to open our complete **Project Underwriting Pitch Deck PDF** directly within GitHub's native, interactive document viewer.*
 
 ---
 
