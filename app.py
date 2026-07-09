@@ -123,8 +123,8 @@ profile_payload = pd.DataFrame([{
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
-# Slices array coordinates cleanly to target default probabilities [0, 1] without casting exception failures
-prob_default = float(model.predict_proba(profile_payload)[0, 1])
+# Slices array coordinates cleanly to target default probabilities without casting exception failures
+prob_default = float(model.predict_proba(profile_payload)[:, 1])
 health_score = int(300 + (1 - prob_default) * 600)
 
 # Determine final status conditions
@@ -168,7 +168,8 @@ with col_card:
     
     col_str, col_risk = st.columns(2)
     with col_str:
-        st.markdown("<p style='color:#2ecc71; font-weight:bold; font-size:16px;'>🌟 Factors Helping Your Score</p>", unsafe_allowed_html=True)
+        # 🌟 FIXED PARAMETER: unsafe_allow_html=True
+        st.markdown("<p style='color:#2ecc71; font-weight:bold; font-size:16px;'>🌟 Factors Helping Your Score</p>", unsafe_allow_html=True)
         if top_strengths:
             for feat, val in top_strengths:
                 st.markdown(f"✅ **{layman_translation[feat]}** is helping protect your financial reputation.")
@@ -176,7 +177,8 @@ with col_card:
             st.write("No major positive indicators found.")
             
     with col_risk:
-        st.markdown("<p style='color:#e74c3c; font-weight:bold; font-size:16px;'>⚠️ Factors Hurting Your Score</p>", unsafe_allowed_html=True)
+        # 🌟 FIXED PARAMETER: unsafe_allow_html=True
+        st.markdown("<p style='color:#e74c3c; font-weight:bold; font-size:16px;'>⚠️ Factors Hurting Your Score</p>", unsafe_allow_html=True)
         if top_risks:
             for feat, val in top_risks:
                 st.markdown(f"❌ **{layman_translation[feat]}** is pulling down your loan eligibility score ranking.")
