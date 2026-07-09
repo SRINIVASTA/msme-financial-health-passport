@@ -189,3 +189,20 @@ with col_card:
     st.markdown("---")
     st.subheader("💡 Automated Next Steps for the Business")
     st.info(nudge)
+
+# Create a 1500-sample master dataset using your verified logic
+@st.cache_data
+def convert_df_to_csv():
+    # Call the exact function used in your backend logic
+    master_df = load_and_train_credit_engine()[0] # Or call generate_mock_msme_data(1500)
+    return master_df.to_csv(index=False).encode('utf-8')
+
+csv_data = convert_df_to_csv()
+
+# Renders a native browser download button on your page sidebar or canvas
+st.download_button(
+    label="📥 Download Master Synthetic MSME Credit Dataset (CSV)",
+    data=csv_data,
+    file_name="msme_alternate_credit_data.csv",
+    mime="text/csv",
+)
