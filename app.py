@@ -191,35 +191,85 @@ with col_card:
     alert_box(f"🎯 **System Assessment Tier Status:** {tier}")
     
     st.markdown("---")
-    
-    # --- FIXED LAYOUT ENGINE & MATHEMATICAL MATRIX TUNING ---
     st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
     # Process Explainability engine data tracking 1D elements safely
     shap_output = explainer(profile_payload)
     
-    # Ensure we safely extract the raw 1D array array out of SHAP's nested matrix payload
+    # Target index to extract the raw 1D array out of SHAP's matrix payload
     feature_impacts = dict(zip(feature_names, shap_output.values[0]))
     
-    # 🌟 CRITICAL MATH FIX: Explicitly target index [1] to filter and sort by numeric float weights
+    # Isolate top vectors based on pure positive vs negative scalar thresholds
     top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
     top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
     
-    # Box 1: Strengths stacked cleanly right under the subtitle
-    st.markdown("### 🌟 Factors Helping Your Score")
-    if top_strengths:
-        for feat, val in top_strengths:
-            st.success(f"✅ **{layman_translation[feat]}** is helping protect your financial reputation.")
-    else:
-        st.write("No major positive indicators found.")
-        
-    st.markdown(" ") # Creates breathing room spacer
+    # 🎨 --- NEW DYNAMIC MATPLOTLIB VISUALIZATION GENERATOR ---
+    # This automatically compiles the exact mathematical drivers into a clean, horizontal visual bar chart
+    plot_features = []
+    plot_weights = []
+    plot_colors = []
     
-    # Box 2: Risks stacked cleanly directly under the strengths
-    st.markdown("### ⚠️ Factors Hurting Your Score")
-    if top_risks:
-        for feat, val in top_risks:
-            st.error(f"❌ **{layman_translation[feat]}** is pulling down your loan eligibility score ranking.")
-    else:
-        st.write("Excellent! No active risk flags are dragging down your score.")
+    # Add risks (pointing right or colored red to show negative impact to the borrower)
+    for name, weight in reversed(top_risks):
+        plot_features.append(layman_translation[name])
+        plot_weights.append(weight)
+        plot_colors.append('#e74c3c')  # Bold warning red
+        
+    # Add strengths (pointing left or colored green to show positive protective impact)
+    for name, weight in top_strengths:
+        plot_features.append(layman_translation[name])
+        plot_weights.append(weight)
+        plot_colors.append('#2ecc71')  # Emerald green
+        
+    if plot_features:
+        fig, ax = plt.subplots(figsize=(7, 3))
+        fig.patch.set_facecolor('#ffffff')
+        ax.set_facecolor('#ffffff')
+        
+        # Eliminate background box borders for an elegant, modern web interface look
+        ax.spines['top'].set_visible(False)
+        ax.spines['right'].set_visible(False)
+        ax.spines['left'].set_color('#bdc3c7')
+        ax.spines['bottom'].set_color('#bdc3c7')
+        
+        # Build horizontal bar layout chart
+        bars = ax.barh(plot_features, plot_weights, color=plot_colors, height=0.4)
+        ax.axvline(x=0, color='#7f8c8d', linestyle='--', linewidth=0.8) # Base equilibrium line
+        ax.set_xlabel("Impact Contribution Weight Score", fontsize=9, color="#34495e")
+        ax.tick_params(axis='both', which='major', labelsize=9, colors='#2c3e50')
+        
+        # Put clean numeric value anchors directly beside the bars
+        for bar in bars:
+            width = bar.get_width()
+            ha_val = 'left' if width >= 0 else 'right'
+            offset = 0.002 if width >= 0 else -0.002
+            ax.text(width + offset, bar.get_y() + bar.get_height()/2, f'{width:+.3f}', 
+                    va='center', ha=ha_val, fontsize=8, weight='bold', color='#34495e')
+            
+        # Pushes the live Matplotlib plot engine context directly into the Streamlit layout canvas
+        st.pyplot(fig)
+    # 🎨 --- VISUALIZATION GENERATOR ENDS HERE ---
+
+    st.markdown("---")
+    col_str, col_risk = st.columns(2)
+    with col_str:
+        st.markdown("🌟 **Factors Helping Your Score**")
+        if top_strengths:
+            for feat, val in top_strengths:
+                st.markdown(f"✅ {layman_translation[feat]}")
+        else:
+            st.write("No major positive indicators found.")
+            
+    with col_risk:
+        st.markdown("⚠️ **Factors Hurting Your Score**")
+        if top_risks:
+            for feat, val in top_risks:
+                st.markdown(f"❌ {layman_translation[feat]}")
+        else:
+            st.write("Excellent! No active risk flags are dragging down your score.")
+            
+    # Display Actionable Next Steps
+    st.markdown("---")
+    st.subheader("💡 Automated Next Steps for the Business")
+    st.info(nudge)
