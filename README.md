@@ -3,7 +3,7 @@
 
 An end-to-end AI/ML credit underwriting engine built to onboard **New-to-Credit (NTC)** and **New-to-Bank (NTB)** small businesses. By replacing slow paper trails with live, consent-backed alternative footprints, this platform translates daily digital operations into an instant, bank-ready credit identity passport.
 
-🌐 **Live Streamlit Application:** `https://msme-financial-health-passport-7smsi6mdtx3jcawyp8qnx9.streamlit.app/`
+🌐 **Live Streamlit Application:** `[https://streamlit.app](https://msme-financial-health-passport-7smsi6mdtx3jcawyp8qnx9.streamlit.app/)`
 
 ---
 
@@ -41,7 +41,7 @@ This application is built with high modularity in mind. By appending standard em
 
 ```html
 <iframe
-  src="PASTE_YOUR_STREAMLIT_CLOUD_URL_HERE?embed=true"
+  src="https://streamlit.app?embed=true"
   style="height: 800px; width: 100%; border: none;"
   title="MSME Financial Health Passport">
 </iframe>
