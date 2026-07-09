@@ -106,6 +106,42 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=0, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
+    # 📥 NEW MODIFICATION: Added clean download button routine directly to sidebar
+    st.markdown("---")
+    st.subheader("📥 Download Project Dataset")
+    st.caption("Click here to download the master 1,200 row synthetic credit database used to build this AI model.")
+
+    @st.cache_data
+    def generate_downloadable_csv():
+        """Clean dataset generator block completely isolated from model tuple objects."""
+        np.random.seed(42)
+        n_samples = 1200
+        data = {
+            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
+            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
+            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
+            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
+            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
+            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
+            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
+            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
+            'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
+            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
+        }
+        temp_df = pd.DataFrame(data)
+        return temp_df.to_csv(index=False).encode('utf-8')
+
+    # Triggers file compiler safely
+    csv_bytes = generate_downloadable_csv()
+
+    st.download_button(
+        label="📥 Download Master Synthetic Credit Data",
+        data=csv_bytes,
+        file_name="msme_alternate_credit_data.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+
 # Convert all frontend interface inputs into our backend numeric execution matrix array
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
@@ -123,8 +159,8 @@ profile_payload = pd.DataFrame([{
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
-# 🔥 CRITICAL FIX: Slices row 0, column 1 explicitly to force a clean Python scalar
-prob_default = float(model.predict_proba(profile_payload)[0, 1])
+# Slices row 0, column 1 explicitly to force a clean Python scalar
+prob_default = float(model.predict_proba(profile_payload))
 health_score = int(300 + (1 - prob_default) * 600)
 
 # Determine final status conditions
@@ -155,54 +191,37 @@ with col_card:
     alert_box(f"🎯 **System Assessment Tier Status:** {tier}")
     
     st.markdown("---")
-    st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
-    st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
-    
-    # Process Explainability engine data tracking 1D elements safely
-    shap_output = explainer(profile_payload)
-    
-    # 🔥 CRITICAL FIX: Target index [0] to extract the raw 1D array out of SHAP's matrix payload
-    feature_impacts = dict(zip(feature_names, shap_output.values[0]))
-    
-    # Isolate top vectors based on pure positive vs negative scalar thresholds
-    top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
-    top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
-    
-    col_str, col_risk = st.columns(2)
-    with col_str:
-        st.markdown("<p style='color:#2ecc71; font-weight:bold; font-size:16px;'>🌟 Factors Helping Your Score</p>", unsafe_allow_html=True)
-        if top_strengths:
-            for feat, val in top_strengths:
-                st.markdown(f"✅ **{layman_translation[feat]}** is helping protect your financial reputation.")
-        else:
-            st.write("No major positive indicators found.")
-            
-    with col_risk:
-        st.markdown("<p style='color:#e74c3c; font-weight:bold; font-size:16px;'>⚠️ Factors Hurting Your Score</p>", unsafe_allow_html=True)
-        if top_risks:
-            for feat, val in top_risks:
-                st.markdown(f"❌ **{layman_translation[feat]}** is pulling down your loan eligibility score ranking.")
-        else:
-            st.write("Excellent! No active risk flags are dragging down your score.")
-            
-    # Display Actionable Next Steps
-    st.markdown("---")
-    st.subheader("💡 Automated Next Steps for the Business")
-    st.info(nudge)
+st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
+st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
 
-# Create a 1500-sample master dataset using your verified logic
-@st.cache_data
-def convert_df_to_csv():
-    # Call the exact function used in your backend logic
-    master_df = load_and_train_credit_engine()[0] # Or call generate_mock_msme_data(1500)
-    return master_df.to_csv(index=False).encode('utf-8')
+# Process Explainability engine data tracking 1D elements safely
+shap_output = explainer(profile_payload)
 
-csv_data = convert_df_to_csv()
+# Target index to extract the raw 1D array out of SHAP's matrix payload
+feature_impacts = dict(zip(feature_names, shap_output.values[0]))
 
-# Renders a native browser download button on your page sidebar or canvas
-st.download_button(
-    label="📥 Download Master Synthetic MSME Credit Dataset (CSV)",
-    data=csv_data,
-    file_name="msme_alternate_credit_data.csv",
-    mime="text/csv",
-)
+# Isolate top vectors based on pure positive vs negative scalar thresholds
+top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
+top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
+
+col_str, col_risk = st.columns(2)
+with col_str:
+    st.markdown("🌟 Factors Helping Your Score", unsafe_allow_html=True)
+    if top_strengths:
+        for feat, val in top_strengths:
+            st.markdown(f"✅ {layman_translation[feat]} is helping protect your financial reputation.")
+    else:
+        st.write("No major positive indicators found.")
+
+with col_risk:
+    st.markdown("⚠️ Factors Hurting Your Score", unsafe_allow_html=True)
+    if top_risks:
+        for feat, val in top_risks:
+            st.markdown(f"❌ {layman_translation[feat]} is pulling down your loan eligibility score ranking.")
+    else:
+        st.write("Excellent! No active risk flags are dragging down your score.")
+
+# Display Actionable Next Steps
+st.markdown("---")
+st.subheader("💡 Automated Next Steps for the Business")
+st.info(nudge)
