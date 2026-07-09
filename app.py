@@ -123,8 +123,8 @@ profile_payload = pd.DataFrame([{
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
-# Slices array coordinates cleanly to target default probabilities without casting exception failures
-prob_default = float(model.predict_proba(profile_payload)[:, 1])
+# 🔥 CRITICAL FIX: Slices row 0, column 1 explicitly to force a clean Python scalar
+prob_default = float(model.predict_proba(profile_payload)[0, 1])
 health_score = int(300 + (1 - prob_default) * 600)
 
 # Determine final status conditions
@@ -158,8 +158,10 @@ with col_card:
     st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
-    # Process Explainability engine data tracking 1D elements
+    # Process Explainability engine data tracking 1D elements safely
     shap_output = explainer(profile_payload)
+    
+    # 🔥 CRITICAL FIX: Target index [0] to extract the raw 1D array out of SHAP's matrix payload
     feature_impacts = dict(zip(feature_names, shap_output.values[0]))
     
     # Isolate top vectors based on pure positive vs negative scalar thresholds
@@ -168,7 +170,6 @@ with col_card:
     
     col_str, col_risk = st.columns(2)
     with col_str:
-        # 🌟 FIXED PARAMETER: unsafe_allow_html=True
         st.markdown("<p style='color:#2ecc71; font-weight:bold; font-size:16px;'>🌟 Factors Helping Your Score</p>", unsafe_allow_html=True)
         if top_strengths:
             for feat, val in top_strengths:
@@ -177,7 +178,6 @@ with col_card:
             st.write("No major positive indicators found.")
             
     with col_risk:
-        # 🌟 FIXED PARAMETER: unsafe_allow_html=True
         st.markdown("<p style='color:#e74c3c; font-weight:bold; font-size:16px;'>⚠️ Factors Hurting Your Score</p>", unsafe_allow_html=True)
         if top_risks:
             for feat, val in top_risks:
