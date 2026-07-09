@@ -74,3 +74,14 @@ streamlit run app.py
 This system is engineered as a lightweight, scalable microservice packaged to connect seamlessly with India's emerging public financial digital rails:
 * **OCEN Protocol (Open Credit Network)**: Formats credit profiles as micro-JSON data tokens so Loan Service Providers (LSPs) can instantly broadcast payloads to multiple competing lenders.
 * **Unified Lending Interface (ULI)**: Connects directly with central identity and bank data infrastructures to reduce corporate commercial appraisal timelines from weeks down to 60 seconds.
+
+## ✒️ Author and Credits
+
+* **Lead Architect & Developer:** [Srinivasta](https://github.com/SRINIVASTA) & My Team Mate:T.Pujitha Sri, BTECH (ECE), 2ND YEAR Student.
+
+### Connect with Me
+- [![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/srinivas-t-a-557637119/)  
+- [![Kaggle](https://img.shields.io/badge/Kaggle-20BEFF?style=for-the-badge&logo=kaggle&logoColor=white)](https://www.kaggle.com/srinivasta)  
+- [![Email](https://img.shields.io/badge/Email-D14836?style=for-the-badge&logo=gmail&logoColor=white)](mailto:tasrinivass@gmail.com)  
+- [![GitHub](https://img.shields.io/badge/GitHub-181717?style=for-the-badge&logo=github&logoColor=white)](https://github.com/srinivasta)
+
