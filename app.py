@@ -181,7 +181,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer.seek(0)
     return buffer.getvalue()
 # =====================================================================
-# 3. INTERACTIVE SIDEBAR & STATE-SYNCHRONIZED CONTROL ENGINE
+# 3. INTERACTIVE SIDEBAR & INTEGRATED DATA INGESTION ENGINE
 # =====================================================================
 st.title("🏦 AI-Driven MSME Financial Health Passport")
 st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. Translates alternative business registry vectors into automated, real-time risk credit scores.")
@@ -189,85 +189,110 @@ st.markdown("---")
 
 col_sidebar, col_card = st.columns([1, 1.2])
 
-# CALLBACK FUNCTION: Explicitly resets and rewrites individual slider memory blocks when dropdown changes
+# CALLBACK FUNCTION: Syncs slider states by reading the globally active uploaded or synthetic dataset
 def sync_inputs_to_selected_row():
-    # Find matching index from session state string label
-    current_label = st.session_state.active_msme_dropdown
-    row_idx = int(current_label.split("-")[1]) - 1
-    row_data = active_dataset.iloc[row_idx]
-    
-    # Force rewrite values directly to slider session memory states
-    st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
-    st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
-    st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
-    st.session_state["sb_turnover"] = int(row_data['gst_monthly_turnover_inr'])
-    st.session_state["sb_conc"] = float(np.clip(row_data['gst_buyer_concentration_ratio'], 0.0, 1.0))
-    st.session_state["sb_delay"] = int(row_data['gst_filing_delay_days_avg'])
-    st.session_state["sb_upi_vol"] = int(row_data['upi_tx_volume_monthly'])
-    st.session_state["sb_upi_size"] = int(row_data['upi_ticket_size_avg_inr'])
-    st.session_state["sb_epfo_staff"] = int(row_data['epfo_employee_count'])
-    st.session_state["sb_epfo_score"] = float(np.clip(row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
+    if "active_dataset" in st.session_state:
+        current_label = st.session_state.active_msme_dropdown
+        row_idx = int(current_label.split("-")[1]) - 1
+        row_data = st.session_state["active_dataset"].iloc[row_idx]
+        
+        # Rewrite the values directly into current active slider session memory
+        st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
+        st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
+        st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
+        st.session_state["sb_turnover"] = int(row_data['gst_monthly_turnover_inr'])
+        st.session_state["sb_conc"] = float(np.clip(row_data['gst_buyer_concentration_ratio'], 0.0, 1.0))
+        st.session_state["sb_delay"] = int(row_data['gst_filing_delay_days_avg'])
+        st.session_state["sb_upi_vol"] = int(row_data['upi_tx_volume_monthly'])
+        st.session_state["sb_upi_size"] = int(row_data['upi_ticket_size_avg_inr'])
+        st.session_state["sb_epfo_staff"] = int(row_data['epfo_employee_count'])
+        st.session_state["sb_epfo_score"] = float(np.clip(row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
 
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
+    
+    # Selection radio box clears or handles regimes safely
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
-        index=0
+        index=0,
+        key="data_source_mode_radio"
     )
     
+    # CORE FACTORY: Determine which data source has authority right now
     is_using_custom_data = False
+    
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
-        uploaded_bank_file = st.file_uploader(label="📁 Upload Bank Batch Update Data (CSV Format)", type=["csv"])
+        uploaded_bank_file = st.file_uploader(
+            label="📁 Upload Bank Batch Update Data (CSV Format)", 
+            type=["csv"],
+            key="csv_file_uploader_widget"
+        )
+        
         if uploaded_bank_file is not None:
             try:
+                # Force dynamic engine re-training based purely on uploaded parameters
                 user_imported_df = pd.read_csv(uploaded_bank_file)
-                model, explainer, feature_names, active_dataset = train_custom_credit_engine(user_imported_df)
+                m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
+                
+                # Lock custom properties securely into Session Memory
+                st.session_state["active_model"] = m_obj
+                st.session_state["active_explainer"] = e_obj
+                st.session_state["active_features"] = f_list
+                st.session_state["active_dataset"] = d_matrix
                 is_using_custom_data = True
-                st.success(f"Model optimized using uploaded database ({len(active_dataset)} rows)!")
             except Exception as e:
-                st.error(f"Processing Error: {str(e)}")
-                model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
-        else:
-            model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
-    else:
-        model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
+                st.error(f"Processing Error in Custom Sheet: {str(e)}")
+        
+    # Fallback initialization to standard synthetic assets if memory tracks are blank
+    if "active_dataset" not in st.session_state or data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
+        if not is_using_custom_data:
+            m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
+            st.session_state["active_model"] = m_obj
+            st.session_state["active_explainer"] = e_obj
+            st.session_state["active_features"] = f_list
+            st.session_state["active_dataset"] = d_matrix
+
+    if data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
         st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
 
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     
-    total_available_rows = len(active_dataset)
+    # Calculate available options directly from your active memory dataset matrix
+    active_df = st.session_state["active_dataset"]
+    total_available_rows = len(active_df)
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
     
-    # CRITICAL MASTER DROPDOWN: Bound to session_state with an active trigger callback function attached
+    # Dropdown menu hooked to dynamic callback
     selected_msme_label = st.selectbox(
         label="Choose target business entity to inspect:",
         options=msme_options,
         key="active_msme_dropdown",
-        on_change=sync_inputs_to_selected_row,
-        help="Selecting a business code instantly flushes slider memory buffers."
+        on_change=sync_inputs_to_selected_row
     )
     
-    # Initialize values on very first app script booting cycle if missing
+    # Pull selected initial snapshot metrics safely 
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
+    extracted_row_data = active_df.iloc[selected_row_index]
+    
+    # Sync memory slots on very first boot sequence loop
     if "sb_balance" not in st.session_state:
-        initial_row = active_dataset.iloc[0]
-        st.session_state["sb_balance"] = int(initial_row['aa_avg_daily_balance_inr'])
-        st.session_state["sb_ratio"] = float(np.clip(initial_row['aa_inflow_outflow_ratio'], 0.5, 2.0))
-        st.session_state["sb_bounces"] = int(initial_row['aa_fund_insufficient_bounces_3m'])
-        st.session_state["sb_turnover"] = int(initial_row['gst_monthly_turnover_inr'])
-        st.session_state["sb_conc"] = float(np.clip(initial_row['gst_buyer_concentration_ratio'], 0.0, 1.0))
-        st.session_state["sb_delay"] = int(initial_row['gst_filing_delay_days_avg'])
-        st.session_state["sb_upi_vol"] = int(initial_row['upi_tx_volume_monthly'])
-        st.session_state["sb_upi_size"] = int(initial_row['upi_ticket_size_avg_inr'])
-        st.session_state["sb_epfo_staff"] = int(initial_row['epfo_employee_count'])
-        st.session_state["sb_epfo_score"] = float(np.clip(initial_row['epfo_payment_punctuality_score'], 0.0, 1.0))
+        st.session_state["sb_balance"] = int(extracted_row_data['aa_avg_daily_balance_inr'])
+        st.session_state["sb_ratio"] = float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
+        st.session_state["sb_bounces"] = int(extracted_row_data['aa_fund_insufficient_bounces_3m'])
+        st.session_state["sb_turnover"] = int(extracted_row_data['gst_monthly_turnover_inr'])
+        st.session_state["sb_conc"] = float(np.clip(extracted_row_data['gst_buyer_concentration_ratio'], 0.0, 1.0))
+        st.session_state["sb_delay"] = int(extracted_row_data['gst_filing_delay_days_avg'])
+        st.session_state["sb_upi_vol"] = int(row_data['upi_tx_volume_monthly']) if 'row_data' in locals() else int(extracted_row_data['upi_tx_volume_monthly'])
+        st.session_state["sb_upi_size"] = int(extracted_row_data['upi_ticket_size_avg_inr'])
+        st.session_state["sb_epfo_staff"] = int(extracted_row_data['epfo_employee_count'])
+        st.session_state["sb_epfo_score"] = float(np.clip(extracted_row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
 
     client_name = st.text_input("Assign Corporate Display Name", value=f"Sri Venkateswara Enterprises ({selected_msme_label})")
     
-    # BIND SLIDERS EXPLICITLY TO THE FLUSHED SESSION STATE MEMORY KEYS
     with st.expander("💼 Ingested Account Aggregator Records", expanded=True):
         input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, key="sb_balance", step=5000)
         input_ratio = st.slider("Money Inflow vs Outflow Ratio (Target above 1.0x)", 0.5, 2.0, key="sb_ratio", step=0.05)
@@ -286,13 +311,13 @@ with col_sidebar:
 
     st.markdown("---")
     st.subheader("📥 Master Data Export Controls")
-    approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
-    rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
+    approved_dataframe = active_df[active_df['is_default'] == 0]
+    rejected_dataframe = active_df[active_df['is_default'] == 1]
     
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# Build payload out of securely synchronized UI controllers
+# Package freshly unified configuration row vectors
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -306,12 +331,18 @@ profile_payload = pd.DataFrame([{
     'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
 # =====================================================================
-# 4. MAIN DISPLAY CARD & STATE-SYNCHRONIZED OPERATIONS ENGINE
+# 4. MAIN DISPLAY CARD & REQ-03 INTEGRATED EVALUATION PIPELINE
 # =====================================================================
+# Pull runtime configuration parameters directly from active state matrices
+model = st.session_state["active_model"]
+explainer = st.session_state["active_explainer"]
+feature_names = st.session_state["active_features"]
+active_df = st.session_state["active_dataset"]
+
 with col_card:
-    if is_using_custom_data:
+    if data_source_mode == "Batch Document Upload (CSV Sandbox)" and uploaded_bank_file is not None:
         st.subheader("📋 Active Uploaded Bank Registry Database")
-        st.dataframe(active_dataset, use_container_width=True, height=180)
+        st.dataframe(active_df, use_container_width=True, height=180)
     elif data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
         st.subheader("🌐 Connected Live Data Streams")
         st.info("📡 Secure network tunnel established. Fetching consent-backed credentials via **ULI architecture** for instant evaluation.")
@@ -322,9 +353,9 @@ with col_card:
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
-    # 1. EVALUATE FRESH SYNCHRONIZED MATRIX PAYLOAD LIVE
+    # Run prediction using the freshly unified matrix structure
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # DYNAMIC MATRIX INDEX EXTRACTOR
+    default_probability = float(prob_output[0, 1])  
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -349,7 +380,7 @@ with col_card:
     st.progress((health_score - 300) / 600)
     st.markdown("---")
     
-    # 2. SHAP GENERATOR: Recalculates dynamically because payload payload flushes on callback triggers
+    # SHAP RENDERING: Re-computes using your uploaded model specifications
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
     
@@ -374,7 +405,6 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Render freshly synchronized horizontal plot bars
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
@@ -382,7 +412,7 @@ with col_card:
     plt.tight_layout()
     st.pyplot(fig)
     
-    # 3. DYNAMIC DRIVER TEXT EXTRACTION
+    # DYNAMIC DRIVER TEXT EXTRACTION
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -407,8 +437,7 @@ with col_card:
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
-    # Clean dictionary generation out of dynamic session elements
-    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}
+    flat_payload_dict = {k: v for k, v in profile_payload.iloc.to_dict().items()}
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
