@@ -162,16 +162,19 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
 # =====================================================================
 # 3. INTERACTIVE SIDEBAR & INTEGRATED DATA INGESTION ENGINE
 # =====================================================================
+# =====================================================================
+# BLOCK 4: SIDEBAR CONTROLS & STATE-CACHING CALLBACKS
+# =====================================================================
 col_sidebar, col_card = st.columns([1, 1.2])
 
 def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")[1]) - 1 # AGENTIC FIX: Safe string parsing
+        row_idx = int(current_label.split("-")[1]) - 1 # EXPLICIT SAFE LIST SPLIT INDEX
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
-        # Flush targets out straight to session storage parameters
+        # Flush targets out straight to synchronized sidebar parameter caches
         st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
         st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
         st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
@@ -186,6 +189,7 @@ def sync_inputs_to_selected_row():
 
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
+    
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
@@ -193,42 +197,62 @@ with col_sidebar:
         key="data_source_mode_radio"
     )
     
-    is_using_custom_data = False
+    # MASTER INGESTION CONTROLLER GATES
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
         uploaded_bank_file = st.file_uploader(label="📁 Upload Bank Batch Update Data (CSV Format)", type=["csv"], key="csv_file_uploader_widget")
         
         if uploaded_bank_file is not None:
-            try:
-                user_imported_df = pd.read_csv(uploaded_bank_file)
-                m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
-                
-                if "last_loaded_file" not in st.session_state or st.session_state["last_loaded_file"] != uploaded_bank_file.name:
-                    for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]:
+            # INVARIANT TOKEN VALIDATION: Only parse and train if it is a brand new file payload
+            if "last_loaded_file" not in st.session_state or st.session_state["last_loaded_file"] != uploaded_bank_file.name:
+                try:
+                    user_imported_df = pd.read_csv(uploaded_bank_file)
+                    m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
+                    
+                    # Clear out stale manual caches from previous dataset sessions
+                    for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
                         if cache_key in st.session_state:
                             del st.session_state[cache_key]
+                            
+                    # Secure custom data states inside global memory storage vault
+                    st.session_state["active_model"] = m_obj
+                    st.session_state["active_explainer"] = e_obj
+                    st.session_state["active_features"] = f_list
+                    st.session_state["active_dataset"] = d_matrix
                     st.session_state["last_loaded_file"] = uploaded_bank_file.name
-                
+                    st.toast("🎯 Custom Portfolio Ingested & Model Retrained Successfully!", icon="✅")
+                except Exception as e:
+                    st.error(f"Processing Error in Sheet Format: {str(e)}")
+                    
+            # Track context state if file is removed mid-session
+            elif "active_dataset" not in st.session_state:
+                m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
                 st.session_state["active_model"] = m_obj
                 st.session_state["active_explainer"] = e_obj
                 st.session_state["active_features"] = f_list
                 st.session_state["active_dataset"] = d_matrix
-                is_using_custom_data = True
-            except Exception as e:
-                st.error(f"Processing Error in Custom Sheet: {str(e)}")
-
-    if "active_dataset" not in st.session_state or data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
-        if not is_using_custom_data:
-            m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
-            st.session_state["active_model"] = m_obj
-            st.session_state["active_explainer"] = e_obj
-            st.session_state["active_features"] = f_list
-            st.session_state["active_dataset"] = d_matrix
+    
+    # Reset back to synthetic data baseline channels if Live APIs are targeted
+    else:
+        # Force clear out file token tracking history to allow clean subsequent re-uploads
+        if "last_loaded_file" in st.session_state:
+            del st.session_state["last_loaded_file"]
+            for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
+                if cache_key in st.session_state:
+                    del st.session_state[cache_key]
+                    
+        m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
+        st.session_state["active_model"] = m_obj
+        st.session_state["active_explainer"] = e_obj
+        st.session_state["active_features"] = f_list
+        st.session_state["active_dataset"] = d_matrix
+        st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
 
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     
+    # Read variables strictly from the state-locked active data storage arrays
     active_df = st.session_state["active_dataset"]
     total_available_rows = len(active_df)
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
@@ -243,6 +267,7 @@ with col_sidebar:
     selected_row_index = int(selected_msme_label.split("-")[1]) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
+    # Lock initial values safely if memory track keys are un-initialized
     if "sb_balance" not in st.session_state:
         st.session_state["sb_balance"] = int(extracted_row_data['aa_avg_daily_balance_inr'])
         st.session_state["sb_ratio"] = float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
@@ -282,20 +307,26 @@ with col_sidebar:
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
+# COUPLED PAYLOAD GENERATOR: Ingests properties strictly from state-synchronized sidebar memory slots
 profile_payload = pd.DataFrame([{
-    'aa_avg_daily_balance_inr': float(input_balance),
-    'aa_inflow_outflow_ratio': float(input_ratio),
-    'aa_fund_insufficient_bounces_3m': int(input_bounces),
-    'gst_monthly_turnover_inr': float(input_turnover),
-    'gst_buyer_concentration_ratio': float(input_conc),
-    'gst_filing_delay_days_avg': int(input_delay),
-    'upi_tx_volume_monthly': int(input_upi_vol),
-    'upi_ticket_size_avg_inr': float(input_upi_size),
-    'epfo_employee_count': int(input_epfo_staff),
-    'epfo_payment_punctuality_score': float(input_epfo_score)
-}])
+    'aa_avg_daily_balance_inr': float(st.session_state["sb_balance"]),
+    'aa_inflow_outflow_ratio': float(st.session_state["sb_ratio"]),
+    'aa_fund_insufficient_bounces_3m': int(st.session_state["sb_bounces"]),
+    'gst_monthly_turnover_inr': float(st.session_state["sb_turnover"]),
+    'gst_buyer_concentration_ratio': float(st.session_state["sb_conc"]),
+    'gst_filing_delay_days_avg': int(st.session_state["sb_delay"]),
+    'upi_tx_volume_monthly': int(st.session_state["sb_upi_vol"]),
+    'upi_ticket_size_avg_inr': float(st.session_state["sb_upi_size"]),
+    'epfo_employee_count': int(st.session_state["sb_epfo_staff"]),
+    'epfo_payment_punctuality_score': float(st.session_state["sb_epfo_score"])
+    }])
+    
+---
+
+### Updated Block 5: Dashboard Output Grid & State-Synchronized Evaluation
+```python
 # =====================================================================
-# 4. MAIN DISPLAY CARD INTERFACE
+# BLOCK 5: MAIN DASHBOARD CARD & DYNAMIC REPORTING OUTPUTS
 # =====================================================================
 model = st.session_state["active_model"]
 explainer = st.session_state["active_explainer"]
@@ -303,7 +334,7 @@ feature_names = st.session_state["active_features"]
 active_df = st.session_state["active_dataset"]
 
 with col_card:
-    if data_source_mode == "Batch Document Upload (CSV Sandbox)" and uploaded_bank_file is not None:
+    if data_source_mode == "Batch Document Upload (CSV Sandbox)" and "last_loaded_file" in st.session_state:
         st.subheader("📋 Active Uploaded Bank Registry Database")
         st.dataframe(active_df, use_container_width=True, height=180)
     elif data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
@@ -317,7 +348,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # AGENTIC FIX: Thread-safe row 0 column 1 extraction
+    default_probability = float(prob_output[0, 1])  # FIXED ARRAY EXTRACTOR
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -366,16 +397,15 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Thread-Safe graph generation block
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
     ax.set_xlabel('Impact Weight Score')
     plt.tight_layout()
     st.pyplot(fig)
-    plt.close(fig)  # Free up system memory assets instantly
+    plt.close(fig)  # Safely close figure to release backend memory
     
-    # DYNAMIC DRIVER EXTRACTION Engine
+    # DYNAMIC TRACKER EXTRACTOR ENGINE
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -397,8 +427,7 @@ with col_card:
         unsafe_allow_html=True
     )
     
-    # AGENTIC FIX: Safe flat dictionary parsing method out of first index row layout Series
-    flat_payload_dict = profile_payload.iloc[0].to_dict()
+    flat_payload_dict = profile_payload.iloc[0].to_dict() # ROW 0 EXPLICT EXTRACTOR FIXED
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(
