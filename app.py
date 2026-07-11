@@ -181,7 +181,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer.seek(0)
     return buffer.getvalue()
 # =====================================================================
-# 3. INTERACTIVE SIDEBAR & BIDIRECTIONAL CONTROL ENGINE
+# 3. INTERACTIVE SIDEBAR & STATE-SYNCHRONIZED CONTROL ENGINE
 # =====================================================================
 st.title("🏦 AI-Driven MSME Financial Health Passport")
 st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. Translates alternative business registry vectors into automated, real-time risk credit scores.")
@@ -189,28 +189,38 @@ st.markdown("---")
 
 col_sidebar, col_card = st.columns([1, 1.2])
 
+# CALLBACK FUNCTION: Explicitly resets and rewrites individual slider memory blocks when dropdown changes
+def sync_inputs_to_selected_row():
+    # Find matching index from session state string label
+    current_label = st.session_state.active_msme_dropdown
+    row_idx = int(current_label.split("-")[1]) - 1
+    row_data = active_dataset.iloc[row_idx]
+    
+    # Force rewrite values directly to slider session memory states
+    st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
+    st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
+    st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
+    st.session_state["sb_turnover"] = int(row_data['gst_monthly_turnover_inr'])
+    st.session_state["sb_conc"] = float(np.clip(row_data['gst_buyer_concentration_ratio'], 0.0, 1.0))
+    st.session_state["sb_delay"] = int(row_data['gst_filing_delay_days_avg'])
+    st.session_state["sb_upi_vol"] = int(row_data['upi_tx_volume_monthly'])
+    st.session_state["sb_upi_size"] = int(row_data['upi_ticket_size_avg_inr'])
+    st.session_state["sb_epfo_staff"] = int(row_data['epfo_employee_count'])
+    st.session_state["sb_epfo_score"] = float(np.clip(row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
+
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
-    
-    # SELECTION TOGGLE PANEL
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
-        index=0,
-        help="Switch between simulated real-time API sync networks or bulk business data sheet uploads."
+        index=0
     )
     
     is_using_custom_data = False
-    
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
-        uploaded_bank_file = st.file_uploader(
-            label="📁 Upload Bank Batch Update Data (CSV Format)",
-            type=["csv"],
-            help="Upload a dataset containing matching columns to optimize system underwriting."
-        )
-        
+        uploaded_bank_file = st.file_uploader(label="📁 Upload Bank Batch Update Data (CSV Format)", type=["csv"])
         if uploaded_bank_file is not None:
             try:
                 user_imported_df = pd.read_csv(uploaded_bank_file)
@@ -218,118 +228,71 @@ with col_sidebar:
                 is_using_custom_data = True
                 st.success(f"Model optimized using uploaded database ({len(active_dataset)} rows)!")
             except Exception as e:
-                st.error(f"Processing Error: Check format constraints. Details: {str(e)}")
+                st.error(f"Processing Error: {str(e)}")
                 model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
         else:
             model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
     else:
         model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
-        st.caption("🟢 **Real-time API Ingestion Active**: Connected to simulated Account Aggregator and GSTN public rails via Unified Lending Interface (ULI) protocols.")
+        st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
 
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     
-    # AUTOMATED MSME INDEX IDENTIFIER SETUP
     total_available_rows = len(active_dataset)
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
     
+    # CRITICAL MASTER DROPDOWN: Bound to session_state with an active trigger callback function attached
     selected_msme_label = st.selectbox(
         label="Choose target business entity to inspect:",
         options=msme_options,
-        index=0,
-        help="Selecting a business code instantly pulls its row and auto-adjusts the controllers below."
+        key="active_msme_dropdown",
+        on_change=sync_inputs_to_selected_row,
+        help="Selecting a business code instantly flushes slider memory buffers."
     )
     
-    # Extract matching row index directly from selection
-    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
-    extracted_row_data = active_dataset.iloc[selected_row_index]
-    
-    # Assign client name dynamically using user box
+    # Initialize values on very first app script booting cycle if missing
+    if "sb_balance" not in st.session_state:
+        initial_row = active_dataset.iloc[0]
+        st.session_state["sb_balance"] = int(initial_row['aa_avg_daily_balance_inr'])
+        st.session_state["sb_ratio"] = float(np.clip(initial_row['aa_inflow_outflow_ratio'], 0.5, 2.0))
+        st.session_state["sb_bounces"] = int(initial_row['aa_fund_insufficient_bounces_3m'])
+        st.session_state["sb_turnover"] = int(initial_row['gst_monthly_turnover_inr'])
+        st.session_state["sb_conc"] = float(np.clip(initial_row['gst_buyer_concentration_ratio'], 0.0, 1.0))
+        st.session_state["sb_delay"] = int(initial_row['gst_filing_delay_days_avg'])
+        st.session_state["sb_upi_vol"] = int(initial_row['upi_tx_volume_monthly'])
+        st.session_state["sb_upi_size"] = int(initial_row['upi_ticket_size_avg_inr'])
+        st.session_state["sb_epfo_staff"] = int(initial_row['epfo_employee_count'])
+        st.session_state["sb_epfo_score"] = float(np.clip(initial_row['epfo_payment_punctuality_score'], 0.0, 1.0))
+
     client_name = st.text_input("Assign Corporate Display Name", value=f"Sri Venkateswara Enterprises ({selected_msme_label})")
     
-    # DYNAMIC AUTO-ADJUSTING CONTROLLER FIELDS (Pre-filled with row data, allowing user modifications)
+    # BIND SLIDERS EXPLICITLY TO THE FLUSHED SESSION STATE MEMORY KEYS
     with st.expander("💼 Ingested Account Aggregator Records", expanded=True):
-        input_balance = st.number_input(
-            "Average Daily Balance kept in Bank (INR)", 
-            min_value=0, 
-            value=int(extracted_row_data['aa_avg_daily_balance_inr']), 
-            step=5000
-        )
-        input_ratio = st.slider(
-            "Money Inflow vs Outflow Ratio (Target above 1.0x)", 
-            0.5, 2.0, 
-            value=float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0)), 
-            step=0.05
-        )
-        input_bounces = st.number_input(
-            "Cheque Bounces due to low funds (Last 3 Months)", 
-            min_value=0, max_value=30, 
-            value=int(extracted_row_data['aa_fund_insufficient_bounces_3m'])
-        )
+        input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, key="sb_balance", step=5000)
+        input_ratio = st.slider("Money Inflow vs Outflow Ratio (Target above 1.0x)", 0.5, 2.0, key="sb_ratio", step=0.05)
+        input_bounces = st.number_input("Cheque Bounces due to low funds (Last 3 Months)", min_value=0, max_value=30, key="sb_bounces")
         
     with st.expander("📄 Tax & Sales Records (GST Portal)", expanded=True):
-        input_turnover = st.number_input(
-            "Average Monthly Sales/Turnover (INR)", 
-            min_value=0, 
-            value=int(extracted_row_data['gst_monthly_turnover_inr']), 
-            step=10000
-        )
-        input_conc = st.slider(
-            "Dependency Risk (High means depending on 1 buyer)", 
-            0.0, 1.0, 
-            value=float(np.clip(extracted_row_data['gst_buyer_concentration_ratio'], 0.0, 1.0)), 
-            step=0.05
-        )
-        input_delay = st.number_input(
-            "Average Tax Filing Delay (Days)", 
-            min_value=0, max_value=90, 
-            value=int(extracted_row_data['gst_filing_delay_days_avg'])
-        )
+        input_turnover = st.number_input("Average Monthly Sales/Turnover (INR)", min_value=0, key="sb_turnover", step=10000)
+        input_conc = st.slider("Dependency Risk (High means depending on 1 buyer)", 0.0, 1.0, key="sb_conc", step=0.05)
+        input_delay = st.number_input("Average Tax Filing Delay (Days)", min_value=0, max_value=90, key="sb_delay")
         
     with st.expander("📱 Everyday Digital Operations (UPI & Employee Data)", expanded=True):
-        input_upi_vol = st.number_input(
-            "Total UPI/QR Code Sales Transactions per Month", 
-            min_value=0, 
-            value=int(extracted_row_data['upi_tx_volume_monthly'])
-        )
-        input_upi_size = st.number_input(
-            "Average Bill Amount per Customer (INR)", 
-            min_value=10, 
-            value=int(extracted_row_data['upi_ticket_size_avg_inr'])
-        )
-        input_epfo_staff = st.number_input(
-            "Active Registered Staff Count", 
-            min_value=1, 
-            value=int(extracted_row_data['epfo_employee_count'])
-        )
-        input_epfo_score = st.slider(
-            "Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 
-            0.0, 1.0, 
-            value=float(np.clip(extracted_row_data['epfo_payment_punctuality_score'], 0.0, 1.0)), 
-            step=0.05
-        )
+        input_upi_vol = st.number_input("Total UPI/QR Code Sales Transactions per Month", min_value=0, key="sb_upi_vol")
+        input_upi_size = st.number_input("Average Bill Amount per Customer (INR)", min_value=10, key="sb_upi_size")
+        input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, key="sb_epfo_staff")
+        input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, key="sb_epfo_score", step=0.05)
 
     st.markdown("---")
     st.subheader("📥 Master Data Export Controls")
     approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
     rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
     
-    st.download_button(
-        label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)",
-        data=approved_dataframe.to_csv(index=False).encode('utf-8'),
-        file_name="approved_msme_credit_passport.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
-    st.download_button(
-        label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)",
-        data=rejected_dataframe.to_csv(index=False).encode('utf-8'),
-        file_name="rejected_msme_credit_passport.csv",
-        mime="text/csv",
-        use_container_width=True
-    )
+    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# CONVERT INTERFACE DATA TO MODEL PAYLOAD (Captures the auto-adjusted sidebar state)
+# Build payload out of securely synchronized UI controllers
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -343,7 +306,7 @@ profile_payload = pd.DataFrame([{
     'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
 # =====================================================================
-# 4. MAIN DISPLAY CARD & REQ-03 EXPORT OPERATIONS ENGINE
+# 4. MAIN DISPLAY CARD & STATE-SYNCHRONIZED OPERATIONS ENGINE
 # =====================================================================
 with col_card:
     if is_using_custom_data:
@@ -359,9 +322,9 @@ with col_card:
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
-    # 1. PRECISION PROBABILITY MATRIX EXTRACTION
+    # 1. EVALUATE FRESH SYNCHRONIZED MATRIX PAYLOAD LIVE
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # FIXED: Target Row 0, Class 1 (Default Risk)
+    default_probability = float(prob_output[0, 1])  # DYNAMIC MATRIX INDEX EXTRACTOR
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -386,23 +349,19 @@ with col_card:
     st.progress((health_score - 300) / 600)
     st.markdown("---")
     
-    # 2. DYNAMIC SHAP EXPLANATION ATTRUBUTION MATRIX
+    # 2. SHAP GENERATOR: Recalculates dynamically because payload payload flushes on callback triggers
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
     
-    # Extract the exact feature impact values for Class 1 (Default Risk)
     if len(shap_values.values.shape) == 3:
-        # Shape: [samples, features, classes] -> Index 0 for sample, class 1 for default risk
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
-        raw_impacts = shap_values.values[0] * -1  # FIXED: Force focus on active selection row index 0
+        raw_impacts = shap_values.values[0, :] * -1
     else:
         raw_impacts = np.ravel(shap_values.values) * -1
         
-    # Force complete 1D structure for clean pandas compilation
     raw_impacts = np.array(raw_impacts).flatten()
     
-    # Structural layout shape safeguard
     if len(raw_impacts) != len(feature_names):
         if len(raw_impacts) > len(feature_names):
             raw_impacts = raw_impacts[:len(feature_names)]
@@ -415,7 +374,7 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Plot custom dynamic visual bars
+    # Render freshly synchronized horizontal plot bars
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
@@ -423,9 +382,8 @@ with col_card:
     plt.tight_layout()
     st.pyplot(fig)
     
-    # 3. DYNAMIC DRIVER EXTRACTION (No empty values!)
+    # 3. DYNAMIC DRIVER TEXT EXTRACTION
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
-    
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
     
@@ -439,7 +397,6 @@ with col_card:
     st.markdown("---")
     # TRACK REQUIREMENT SOLUTION: SPECIFIC CLIENT CREDIT EXPORT PORTAL
     st.subheader("📄 Export Specific Client Document")
-    
     st.markdown(
         f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
             <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
@@ -450,8 +407,8 @@ with col_card:
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
-    # Transform current active frame row into standard dict mapping for PDF execution
-    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}  # FIXED: Row 0 Index explicitly mapped
+    # Clean dictionary generation out of dynamic session elements
+    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
