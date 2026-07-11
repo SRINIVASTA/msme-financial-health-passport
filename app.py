@@ -322,7 +322,6 @@ profile_payload = pd.DataFrame([{
     }])
     
 ### Updated Block 5: Dashboard Output Grid & State-Synchronized Evaluation
-```python
 # =====================================================================
 # BLOCK 5: MAIN DASHBOARD CARD & DYNAMIC REPORTING OUTPUTS
 # =====================================================================
