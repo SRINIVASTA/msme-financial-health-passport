@@ -10,54 +10,68 @@ from sklearn.model_selection import train_test_split
 st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layout="wide")
 
 # =====================================================================
-# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (CACHED)
+# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE ENGINE)
 # =====================================================================
-@st.cache_resource
-def load_and_train_credit_engine():
-    """Generates the underlying data and builds a verified scoring system."""
-    np.random.seed(42)
-    n_samples = 1200
-    
-    # Raw alternative network data collection mapping
-    data = {
-        'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
-        'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
-        'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
-        'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
-        'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
-        'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
-        'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
-        'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
-        'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
-        'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
-    }
-    df = pd.DataFrame(data)
-    
-    # Calculate non-linear business defaults
-    risk_score = (
-        (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
-        (df['gst_buyer_concentration_ratio'] * 2.0) +
-        (df['gst_filing_delay_days_avg'] * 0.15) -
-        (df['aa_inflow_outflow_ratio'] * 1.5) -
-        (df['epfo_payment_punctuality_score'] * 1.0)
-    )
-    threshold = np.percentile(risk_score, 88)
-    df['is_default'] = (risk_score >= threshold).astype(int)
-    
-    X = df.drop(columns=['is_default'])
+def train_custom_credit_engine(custom_df=None):
+    """Trains or updates model parameters using custom uploaded data or baseline defaults."""
+    if custom_df is not None:
+        df = custom_df.copy()
+        # Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
+        if 'is_default' not in df.columns:
+            risk_score = (
+                (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
+                (df['gst_buyer_concentration_ratio'] * 2.0) +
+                (df['gst_filing_delay_days_avg'] * 0.15) -
+                (df['aa_inflow_outflow_ratio'] * 1.5) -
+                (df['epfo_payment_punctuality_score'] * 1.0)
+            )
+            threshold = np.percentile(risk_score, 88)
+            df['is_default'] = (risk_score >= threshold).astype(int)
+    else:
+        # Fallback to structural synthetic generation baseline matrix parameters
+        np.random.seed(42)
+        n_samples = 1200
+        data = {
+            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
+            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
+            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
+            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
+            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
+            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
+            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
+            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
+            'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
+            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
+        }
+        df = pd.DataFrame(data)
+        risk_score = (
+            (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
+            (df['gst_buyer_concentration_ratio'] * 2.0) +
+            (df['gst_filing_delay_days_avg'] * 0.15) -
+            (df['aa_inflow_outflow_ratio'] * 1.5) -
+            (df['epfo_payment_punctuality_score'] * 1.0)
+        )
+        threshold = np.percentile(risk_score, 88)
+        df['is_default'] = (risk_score >= threshold).astype(int)
+
+    X = df.drop(columns=['is_default'], errors='ignore')
+    # Filter strictly down to your 10 target schema features
+    target_features = [
+        'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
+        'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
+        'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count', 'epfo_payment_punctuality_score'
+    ]
+    X = X[target_features]
     y = df['is_default']
     
-    # Train robust classifier
+    # Train robust classifier parameters
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
         scale_pos_weight=7, random_state=42, eval_metric='logloss'
     )
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
-    return model, explainer, X.columns.tolist()
-
-# Run background setup safely
-model, explainer, feature_names = load_and_train_credit_engine()
+    return model, explainer, X.columns.tolist(), df
 
 # Layman terminology translator dictionary for explainable charts
 layman_translation = {
@@ -83,6 +97,31 @@ st.markdown("---")
 col_sidebar, col_card = st.columns([1, 1.2])
 
 with col_sidebar:
+    st.subheader("📥 Data Sync & Model Optimization Sandbox")
+    st.caption("Optionally upload custom bank sheets to optimize model training rules, or download the simulation schema.")
+    
+    # Optional Bank File Ingestion Target Layer
+    uploaded_bank_file = st.file_uploader(
+        label="📤 Upload Bank Batch Update Data (CSV Format)",
+        type=["csv"],
+        help="Upload a dataset containing matching columns to overwrite baseline weights with customized telemetry."
+    )
+    
+    # Route logic to parse uploaded CSV structures safely and store active dataframe status
+    is_using_custom_data = False
+    if uploaded_bank_file is not None:
+        try:
+            user_imported_df = pd.read_csv(uploaded_bank_file)
+            model, explainer, feature_names, active_dataset = train_custom_credit_engine(user_imported_df)
+            is_using_custom_data = True
+            st.success("🟢 Model parameters optimized successfully using uploaded database data!")
+        except Exception as e:
+            st.error(f"🔴 Processing Error: Check your format schema constraints. Error: {str(e)}")
+            model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
+    else:
+        model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
+
+    st.markdown("---")
     st.subheader("📡 Step 1: Input Business Metrics")
     st.caption("Change these values to simulate pulling real data via Account Aggregators or Tax Portals.")
     
@@ -105,14 +144,10 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=0, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
-    # Download button routine directly to sidebar
     st.markdown("---")
-    st.subheader("📥 Download Project Dataset")
-    st.caption("Click here to download the master 1,200 row synthetic credit database used to build this AI model.")
-
+    
     @st.cache_data
     def generate_downloadable_csv():
-        """Clean dataset generator block completely isolated from model tuple objects."""
         np.random.seed(42)
         n_samples = 1200
         data = {
@@ -130,18 +165,16 @@ with col_sidebar:
         temp_df = pd.DataFrame(data)
         return temp_df.to_csv(index=False).encode('utf-8')
 
-    # Triggers file compiler safely
     csv_bytes = generate_downloadable_csv()
-
     st.download_button(
-        label="📥 Download Master Synthetic Credit Data",
+        label="📥 Download Template Schema File",
         data=csv_bytes,
         file_name="msme_alternate_credit_data.csv",
         mime="text/csv",
         use_container_width=True
     )
 
-# Convert all frontend interface inputs into our backend numeric execution matrix array
+# Package single real-time payload tracking dataframe row
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -158,12 +191,23 @@ profile_payload = pd.DataFrame([{
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
 with col_card:
+    # REFACTORED BANK TABLE RENDERING VIEWER
+    if is_using_custom_data:
+        st.subheader("📋 Active Uploaded Bank Registry Database")
+        st.caption("Below is the custom dataset provided by the user. The AI models have been updated on this specific format.")
+        # Renders the uploaded bank sheet data columns directly to match the spreadsheet format
+        st.dataframe(active_dataset, use_container_width=True, height=220)
+    else:
+        st.subheader("💡 Active Registry Status")
+        st.info("ℹ️ Running on baseline **Synthetic Databank Engine** (1,200 Rows). Upload a custom banking spreadsheet in the sidebar to change data environments.")
+        
+    st.markdown("---")
     st.subheader("📊 Step 2: Live Credit Card Passport Results")
     
-    # Calculate probability metrics safely
-    prob_output = model.predict_proba(profile_payload)[0]
-    default_probability = float(prob_output[1])
-    non_default_probability = float(prob_output[0])
+    # Process predictions against the active calibrated model instance
+    prob_output = model.predict_proba(profile_payload)
+    default_probability = float(prob_output[0][1])
+    non_default_probability = float(prob_output[0][0])
     
     # Assign health_score mapped to traditional financial standard system ranges (300 to 900)
     health_score = int(300 + (non_default_probability * 600))
@@ -187,7 +231,7 @@ with col_card:
     with col_stat2:
         st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
         
-    # Linear graphical slider matching layout benchmarks
+    # Linear graphical progress slider
     st.progress((health_score - 300) / 600)
     
     st.markdown("---")
@@ -197,7 +241,7 @@ with col_card:
     # Compute underlying SHAP explanation layers
     shap_values = explainer(profile_payload)
     
-    # INVERSION FIX: Invert SHAP values so positive values represent positive score contributors
+    # Invert SHAP values so positive values represent positive score contributors
     raw_impacts = shap_values.values[0] * -1
     
     # Format data array matrices
