@@ -249,7 +249,7 @@ with col_sidebar:
         on_change=sync_inputs_to_selected_row
     )
     
-    selected_row_index = int(selected_msme_label.split("-")[1]) - 1 # COORDINATE EXTRACTION FIXED
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1 # CLEAN SLICE EXTRACTOR FIXED
     extracted_row_data = active_df.iloc[selected_row_index]
     
     # Synchronize sliders memory blocks if tracks are empty
@@ -292,7 +292,7 @@ with col_sidebar:
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# COUPLED PAYLOAD ENGINE FIXED: Evaluates predictions out of state-locked variables exclusively
+# COUPLED PAYLOAD ENGINE: Packages dynamic sidebar modifications into a clean 1-row evaluation matrix
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(st.session_state["sb_balance"]),
     'aa_inflow_outflow_ratio': float(st.session_state["sb_ratio"]),
@@ -306,7 +306,7 @@ profile_payload = pd.DataFrame([{
     'epfo_payment_punctuality_score': float(st.session_state["sb_epfo_score"])
 }])
 # =====================================================================
-# MAIN DISPLAY CARD INTERFACE & EXPECTED OUTCOMES
+# BLOCK 6: MAIN DISPLAY CARD INTERFACE & EXPECTED OUTCOMES
 # =====================================================================
 model = st.session_state["active_model"]
 explainer = st.session_state["active_explainer"]
@@ -327,8 +327,11 @@ with col_card:
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
+    # Run dynamic risk inference prediction
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # MATRIX ELEMENT COORDINATE FIXED AS SCALAR
+    
+    # 🎯 PERMANENT BUG PLUG: Targets row 0, column 1 explicitly to isolate Default Risk Scalar
+    default_probability = float(prob_output[0, 1])  
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -377,16 +380,15 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Thread-safe canvas instantiation block
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
     ax.set_xlabel('Impact Weight Score')
     plt.tight_layout()
     st.pyplot(fig)
-    plt.close(fig) # Instantly drops chart memory object allocation arrays
+    plt.close(fig)  
     
-    # DYNAMIC TRACKER EXTRACTOR (Guarantees sorted driver names)
+    # SORTING DRIVERS ENGINE
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -408,7 +410,8 @@ with col_card:
         unsafe_allow_html=True
     )
     
-    flat_payload_dict = profile_payload.iloc[0].to_dict() # FLATTENED MATRIX ROW MAPPING FIXED NATIVELY
+    # 🎯 RE-FIXED SERIES FLAT MAPPING KEY VECTOR
+    flat_payload_dict = profile_payload.iloc[0].to_dict() 
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(
