@@ -50,6 +50,7 @@ def train_custom_credit_engine(custom_df=None):
             (df['gst_filing_delay_days_avg'] * 0.15) -
             (df['aa_inflow_outflow_ratio'] * 1.5) -
             (df['epfo_payment_punctuality_score'] * 1.0)
+            ((df['epfo_employee_count'] / 50.0) * 0.5)  # Subtracted to ensure more staff LOWER business risk
         )
         threshold = np.percentile(risk_score, 88)
         df['is_default'] = (risk_score >= threshold).astype(int)
