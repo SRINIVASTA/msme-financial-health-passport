@@ -437,7 +437,10 @@ with col_card:
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
-    flat_payload_dict = {k: v for k, v in profile_payload.iloc.to_dict().items()}
+    # =====================================================================
+    # CRITICAL VECTOR FIXED: EXTRACTS FRESH SINGLE ROW DICTIONARY SAFELY
+    # =====================================================================
+    flat_payload_dict = profile_payload.iloc[0].to_dict()
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
