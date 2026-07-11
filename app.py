@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # =====================================================================
-# SYSTEM INITIALIZATION & GLOBAL LAYOUT SETUP
+# SYSTEM INITIALIZATION & GLOBAL CANVAS SETUP
 # =====================================================================
 st.set_page_config(
     page_title="MSME Credit Health Card Portal", 
@@ -19,7 +19,14 @@ st.set_page_config(
     layout="wide"
 )
 
-# Plain English dictionary mapping code features to user-friendly terminology
+# Mandatory sequence of numerical training features required by the XGBoost Engine
+REQUIRED_FEATURES = [
+    'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
+    'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
+    'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count',
+    'epfo_payment_punctuality_score'
+]
+
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -39,28 +46,29 @@ def train_custom_credit_engine(custom_df=None):
     """Trains or updates model parameters using custom data or baseline defaults."""
     if custom_df is not None:
         df = custom_df.copy()
-        for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna()
+        df.columns = [c.lower().strip() for c in df.columns]
         
-        if 'is_default' not in df.columns and len(df) > 0:
+        # Strip structural primary index markers or row counter column variations
+        df = df.drop(columns=['row_id', 'id', 'sno', 'unnamed: 0'], errors='ignore')
+        
+        for f in REQUIRED_FEATURES:
+            if f not in df.columns:
+                df[f] = 0.0
+                
+        df = df[REQUIRED_FEATURES + (['is_default'] if 'is_default' in df.columns else [])]
+        
+        for col in REQUIRED_FEATURES:
+            df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+        
+        if 'is_default' not in df.columns:
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) +
                 (df['gst_buyer_concentration_ratio'] * 2.0) +
                 (df['gst_filing_delay_days_avg'] * 0.15) -
                 (df['aa_inflow_outflow_ratio'] * 1.5) -
-                (df['epfo_payment_punctuality_score'] * 1.0) -
-                ((df['epfo_employee_count'] / 50.0) * 0.5)
+                (df['epfo_payment_punctuality_score'] * 1.0)
             )
-            if len(df) <= 5:
-                df['is_default'] = (risk_score >= -0.5).astype(int)
-            else:
-                df['is_default'] = (risk_score >= np.percentile(risk_score, 16.67)).astype(int)
-        else:
-            df['is_default'] = df['is_default'].fillna(0).astype(int)
-            
-        if len(df) > 0 and df['is_default'].nunique() == 1:
-            df.loc[df.index, 'is_default'] = 1 - df.loc[df.index, 'is_default']
+            df['is_default'] = (risk_score >= np.percentile(risk_score, 85) if len(df) > 5 else (risk_score >= 0)).astype(int)
     else:
         np.random.seed(42)
         n_samples = 1200
@@ -82,26 +90,18 @@ def train_custom_credit_engine(custom_df=None):
             (df['gst_buyer_concentration_ratio'] * 2.0) +
             (df['gst_filing_delay_days_avg'] * 0.15) -
             (df['aa_inflow_outflow_ratio'] * 1.5) -
-            (df['epfo_payment_punctuality_score'] * 1.0) -
-            ((df['epfo_employee_count'] / 50.0) * 0.5)
+            (df['epfo_payment_punctuality_score'] * 1.0)
         )
-        df['is_default'] = (risk_score >= np.percentile(risk_score, 16.67)).astype(int)
+        df['is_default'] = (risk_score >= np.percentile(risk_score, 85)).astype(int)
 
-    X = df.drop(columns=['is_default'], errors='ignore')
-    target_features = [
-        'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
-        'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
-        'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count',
-        'epfo_payment_punctuality_score'
-    ]
-    X = X[target_features]
+    X = df[REQUIRED_FEATURES]
     y = df['is_default']
     
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
-    model = xgb.XGBClassifier(n_estimators=150, max_depth=5, learning_rate=0.05, monotone_constraints=constraints)
+    model = xgb.XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, monotone_constraints=constraints)
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
-    return model, explainer, X.columns.tolist(), df
+    return model, explainer, REQUIRED_FEATURES, df
 # =====================================================================
 # ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE
 # =====================================================================
@@ -110,7 +110,6 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     story = []
-    
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#1B365D'), spaceAfter=15)
     header_style = ParagraphStyle('SecHeader', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#1B365D'), spaceBefore=15, spaceAfter=8)
@@ -128,25 +127,18 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
     t_score = Table(score_data, colWidths=[240, 240])
-    t_score.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-        ('PADDING', (0,0), (-1,-1), 8),
-    ]))
+    t_score.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 8)]))
     story.append(t_score)
     story.append(Spacer(1, 15))
     
-    story.append(Paragraph("<b>Alternative Network Ingested Data Stream Summary</b>", header_style))
+    story.append(Paragraph("<b>Alternative Network Ingested Data Summary</b>", header_style))
     metrics_data = [[Paragraph("<b>Metric Vector Parameter</b>", bold_body), Paragraph("<b>Reported Value</b>", bold_body)]]
-    for k, v in payload_dict.items():
-        metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
+    for f in REQUIRED_FEATURES:
+        v = payload_dict.get(f, 0.0)
+        metrics_data.append([Paragraph(layman_translation.get(f, f), body_style), Paragraph(str(v), body_style)])
     
     t_metrics = Table(metrics_data, colWidths=[240, 240])
-    t_metrics.setStyle(TableStyle([
-        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
-        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
-        ('PADDING', (0,0), (-1,-1), 5),
-    ]))
+    t_metrics.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t_metrics)
     story.append(Spacer(1, 15))
     
@@ -155,7 +147,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     story.append(Paragraph(f"<b>Primary Drivers Negatively Impacting Score:</b> {', '.join(hurters) if hurters else 'None Identified'}", body_style))
     story.append(Spacer(1, 20))
     
-    story.append(Paragraph("<i>This evaluation document is verified via decentralized account aggregators and automated public API tax registries. Generated instantly via ULI protocol interfaces.</i>", body_style))
+    story.append(Paragraph("<i>This evaluation document is verified via decentralized account aggregators. Generated instantly via ULI protocol interfaces.</i>", body_style))
     doc.build(story)
     buffer.seek(0)
     return buffer.getvalue()
@@ -168,7 +160,7 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")[1]) - 1 # COORDINATE FIX: Targets numerical index cleanly
+        row_idx = int(current_label.split("-")[1]) - 1 # SAFE SLICE FIXED
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
         # Flush targets out straight to synchronized sidebar parameter caches safely
@@ -186,70 +178,63 @@ def sync_inputs_to_selected_row():
 
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
-    data_source_mode = st.radio(
-        label="Select Input Ingestion Channel:",
-        options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
-        index=0,
-        key="data_source_mode_radio"
-    )
+    data_source_mode = st.radio(label="Select Input Ingestion Channel:", options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"], index=0, key="data_source_mode_radio")
     
-    is_using_custom_data = False
+    # SYSTEM RESET: If changing mode channels, drop old model sessions to reset baseline
+    if "prev_source_mode" not in st.session_state or st.session_state["prev_source_mode"] != data_source_mode:
+        st.session_state["prev_source_mode"] = data_source_mode
+        for k in ["active_model", "active_explainer", "active_features", "active_dataset", "last_loaded_file", "sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]:
+            if k in st.session_state: del st.session_state[k]
+
+    # CHANNEL REGIME A: DOCUMENT sandbox FILE UPLOAD
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
         uploaded_bank_file = st.file_uploader(label="📁 Upload Bank Batch Update Data (CSV Format)", type=["csv"], key="csv_file_uploader_widget")
         
         if uploaded_bank_file is not None:
-            # INVARIANT TOKEN CHECKPOINT: Wipes manual tracks exactly once when file updates
+            # STATE LOCK: Execute model pipeline optimization EXACTLY ONCE upon manual sheet injection
             if "last_loaded_file" not in st.session_state or st.session_state["last_loaded_file"] != uploaded_bank_file.name:
                 try:
                     user_imported_df = pd.read_csv(uploaded_bank_file)
                     m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
                     
-                    # Flush old cached sliders from state storage safely
-                    for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
-                        if cache_key in st.session_state:
-                            del st.session_state[cache_key]
-                            
+                    # Store variables inside immutable global memory cache boundaries
                     st.session_state["active_model"] = m_obj
                     st.session_state["active_explainer"] = e_obj
                     st.session_state["active_features"] = f_list
                     st.session_state["active_dataset"] = d_matrix
                     st.session_state["last_loaded_file"] = uploaded_bank_file.name
-                    st.toast("🎯 Custom Portfolio Ingested Successfully!", icon="✅")
+                    
+                    for k in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]:
+                        if k in st.session_state: del st.session_state[k]
+                    st.toast("🎯 Custom Sheet Connected & Core Models Locked Safely!", icon="✅")
                 except Exception as e:
                     st.error(f"Processing Error in Custom Format: {str(e)}")
-            is_using_custom_data = True
-            
-    # Reset context parameters if Live APIs options are toggled
-    else:
-        if "last_loaded_file" in st.session_state:
-            del st.session_state["last_loaded_file"]
-            for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
-                if cache_key in st.session_state:
-                    del st.session_state[cache_key]
                     
-        m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
-        st.session_state["active_model"] = m_obj
-        st.session_state["active_explainer"] = e_obj
-        st.session_state["active_features"] = f_list
-        st.session_state["active_dataset"] = d_matrix
-        st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
+        if "active_dataset" not in st.session_state:
+            m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
+            st.session_state["active_model"] = m_obj
+            st.session_state["active_explainer"] = e_obj
+            st.session_state["active_features"] = f_list
+            st.session_state["active_dataset"] = d_matrix
+            
+    # CHANNEL REGIME B: LIVE REAL-TIME API INGESTIONS 
+    else:
+        if "active_dataset" not in st.session_state:
+            m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
+            st.session_state["active_model"] = m_obj
+            st.session_state["active_explainer"] = e_obj
+            st.session_state["active_features"] = f_list
+            st.session_state["active_dataset"] = d_matrix
+            st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
-    
     active_df = st.session_state["active_dataset"]
-    total_available_rows = len(active_df)
-    msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
+    msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(len(active_df))]
     
-    selected_msme_label = st.selectbox(
-        label="Choose target business entity to inspect:",
-        options=msme_options,
-        key="active_msme_dropdown",
-        on_change=sync_inputs_to_selected_row
-    )
-    
-    selected_row_index = int(selected_msme_label.split("-")[1]) - 1 # CLEAN SLICE EXTRACTOR FIXED
+    selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row)
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
     # Synchronize sliders memory blocks if tracks are empty
@@ -268,16 +253,14 @@ with col_sidebar:
 
     client_name = st.text_input("Assign Corporate Display Name", key="sb_client_name")
     
-    with st.expander("💼 Ingested Account Aggregator Records", expanded=True):
+    with st.expander("💼 Account Aggregator Records", expanded=True):
         input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, key="sb_balance", step=5000)
         input_ratio = st.slider("Money Inflow vs Outflow Ratio", 0.5, 2.0, key="sb_ratio", step=0.05)
         input_bounces = st.number_input("Cheque Bounces due to low funds (3M)", min_value=0, max_value=30, key="sb_bounces")
-        
     with st.expander("📄 Tax & Sales Records (GST Portal)", expanded=True):
         input_turnover = st.number_input("Average Monthly Sales/Turnover (INR)", min_value=0, key="sb_turnover", step=10000)
         input_conc = st.slider("Dependency Risk (High = Single Buyer)", 0.0, 1.0, key="sb_conc", step=0.05)
         input_delay = st.number_input("Average Tax Filing Delay (Days)", min_value=0, max_value=90, key="sb_delay")
-        
     with st.expander("📱 Everyday Digital Operations (UPI & EPFO)", expanded=True):
         input_upi_vol = st.number_input("Total UPI Sales Transactions per Month", min_value=0, key="sb_upi_vol")
         input_upi_size = st.number_input("Average Bill Amount per Customer (INR)", min_value=10, key="sb_upi_size")
@@ -288,49 +271,36 @@ with col_sidebar:
     st.subheader("📥 Master Data Export Controls")
     approved_dataframe = active_df[active_df['is_default'] == 0]
     rejected_dataframe = active_df[active_df['is_default'] == 1]
-    
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# COUPLED PAYLOAD ENGINE: Packages dynamic sidebar modifications into a clean 1-row evaluation matrix
+# 🔄 BIND ML INFERENCE INPUTS STRICTLY TO REAL-TIME SIDEBAR METRIC VALS (ALLOWS UN-SYNCHED OVERRIDES)
 profile_payload = pd.DataFrame([{
-    'aa_avg_daily_balance_inr': float(st.session_state["sb_balance"]),
-    'aa_inflow_outflow_ratio': float(st.session_state["sb_ratio"]),
-    'aa_fund_insufficient_bounces_3m': int(st.session_state["sb_bounces"]),
-    'gst_monthly_turnover_inr': float(st.session_state["sb_turnover"]),
-    'gst_buyer_concentration_ratio': float(st.session_state["sb_conc"]),
-    'gst_filing_delay_days_avg': int(st.session_state["sb_delay"]),
-    'upi_tx_volume_monthly': int(st.session_state["sb_upi_vol"]),
-    'upi_ticket_size_avg_inr': float(st.session_state["sb_upi_size"]),
-    'epfo_employee_count': int(st.session_state["sb_epfo_staff"]),
-    'epfo_payment_punctuality_score': float(st.session_state["sb_epfo_score"])
+    'aa_avg_daily_balance_inr': float(input_balance), 'aa_inflow_outflow_ratio': float(input_ratio), 'aa_fund_insufficient_bounces_3m': int(input_bounces),
+    'gst_monthly_turnover_inr': float(input_turnover), 'gst_buyer_concentration_ratio': float(input_conc), 'gst_filing_delay_days_avg': int(input_delay),
+    'upi_tx_volume_monthly': int(input_upi_vol), 'upi_ticket_size_avg_inr': float(input_upi_size), 'epfo_employee_count': int(input_epfo_staff), 'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
-# =====================================================================
-# BLOCK 6: MAIN DISPLAY CARD INTERFACE & EXPECTED OUTCOMES
-# =====================================================================
+
 model = st.session_state["active_model"]
 explainer = st.session_state["active_explainer"]
 feature_names = st.session_state["active_features"]
-active_df = st.session_state["active_dataset"]
-
+# =====================================================================
+# BLOCK 6: MAIN DISPLAY CARD INTERFACE & EXPECTED OUTCOMES
+# =====================================================================
 with col_card:
     if data_source_mode == "Batch Document Upload (CSV Sandbox)" and "last_loaded_file" in st.session_state:
         st.subheader("📋 Active Uploaded Bank Registry Database")
-        st.dataframe(active_df, use_container_width=True, height=180)
-    elif data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
-        st.subheader("🌐 Connected Live Data Streams")
-        st.info("📡 Secure network tunnel established. Fetching credentials via **ULI architecture**.")
+        st.dataframe(st.session_state["active_dataset"], use_container_width=True, height=180)
     else:
         st.subheader("ℹ Active Registry Status")
-        st.info("Running on baseline **Synthetic Databank Engine** (1,200 Rows).")
+        st.info("Running on baseline Synthetic Databank Engine (1,200 Rows). Connected via ULI architectures.")
         
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
-    # Run dynamic risk inference prediction
     prob_output = model.predict_proba(profile_payload)
     
-    # 🎯 PERMANENT BUG PLUG: Targets row 0, column 1 explicitly to isolate Default Risk Scalar
+    # 🎯 TARGETS MATRIX SCALAR EXPLICITLY: UNLOCKS MOVEMENT DYNAMICS FOR RE-TRAINED CSV SHEETS
     default_probability = float(prob_output[0, 1])  
     non_default_probability = 1.0 - default_probability
     
@@ -348,10 +318,8 @@ with col_card:
         st.error(f"🔴 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
         
     col_stat1, col_stat2 = st.columns(2)
-    with col_stat1:
-        st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
-    with col_stat2:
-        st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
+    with col_stat1: st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
+    with col_stat2: st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
         
     st.progress((health_score - 300) / 600)
     st.markdown("---")
@@ -359,25 +327,17 @@ with col_card:
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
     
-    if len(shap_values.values.shape) == 3:
-        raw_impacts = shap_values.values[0, :, 1] * -1
-    elif len(shap_values.values.shape) == 2:
-        raw_impacts = shap_values.values[0, :] * -1
-    else:
-        raw_impacts = np.ravel(shap_values.values) * -1
+    if len(shap_values.values.shape) == 3: raw_impacts = shap_values.values[0, :, 1] * -1
+    elif len(shap_values.values.shape) == 2: raw_impacts = shap_values.values[0, :] * -1
+    else: raw_impacts = np.ravel(shap_values.values) * -1
         
     raw_impacts = np.array(raw_impacts).flatten()
     
     if len(raw_impacts) != len(feature_names):
-        if len(raw_impacts) > len(feature_names):
-            raw_impacts = raw_impacts[:len(feature_names)]
-        else:
-            raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
+        if len(raw_impacts) > len(feature_names): raw_impacts = raw_impacts[:len(feature_names)]
+        else: raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
             
-    chart_dataframe = pd.DataFrame({
-        'Feature': [layman_translation[f] for f in feature_names],
-        'Impact': raw_impacts
-    }).sort_values(by='Impact', ascending=True)
+    chart_dataframe = pd.DataFrame({'Feature': [layman_translation[f] for f in feature_names], 'Impact': raw_impacts}).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
     fig, ax = plt.subplots(figsize=(6, 3))
@@ -388,7 +348,6 @@ with col_card:
     st.pyplot(fig)
     plt.close(fig)  
     
-    # SORTING DRIVERS ENGINE
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -402,22 +361,13 @@ with col_card:
     
     st.markdown("---")
     st.subheader("📄 Export Specific Client Document")
-    st.markdown(
-        f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+    st.markdown(f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
             <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
             <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
-        </div>""", 
-        unsafe_allow_html=True
-    )
+        </div>""", unsafe_allow_html=True)
     
-    # 🎯 RE-FIXED SERIES FLAT MAPPING KEY VECTOR
-    flat_payload_dict = profile_payload.iloc[0].to_dict() 
+    # Pack parameters safely into flat record structures
+    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()}
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
-    st.download_button(
-        label=f"📥 Download Customized PDF Passport for {client_name}",
-        data=client_pdf_bytes,
-        file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
+    st.download_button(label=f"📥 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
