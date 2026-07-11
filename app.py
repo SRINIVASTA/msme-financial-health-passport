@@ -10,7 +10,7 @@ from sklearn.model_selection import train_test_split
 st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layout="wide")
 
 # =====================================================================
-# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE CACHE)
+# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (STRICT ENGINE)
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
     """Trains or updates model parameters using custom uploaded data or baseline defaults."""
@@ -22,7 +22,7 @@ def train_custom_credit_engine(custom_df=None):
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna()
         
-        # Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
+        # STRICT RISK GATE: Only approve the top 16.67% (~200 out of 1200)
         if 'is_default' not in df.columns:
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
@@ -32,7 +32,7 @@ def train_custom_credit_engine(custom_df=None):
                 (df['epfo_payment_punctuality_score'] * 1.0) -
                 ((df['epfo_employee_count'] / 50.0) * 0.5)
             )
-            threshold = np.percentile(risk_score, 88)
+            threshold = np.percentile(risk_score, 16.67)
             df['is_default'] = (risk_score >= threshold).astype(int)
         else:
             df['is_default'] = df['is_default'].astype(int)
@@ -53,6 +53,8 @@ def train_custom_credit_engine(custom_df=None):
             'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
         }
         df = pd.DataFrame(data)
+        
+        # STRICT RISK GATE: Force the baseline to reject 1,000 businesses and approve 200
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -61,7 +63,7 @@ def train_custom_credit_engine(custom_df=None):
             (df['epfo_payment_punctuality_score'] * 1.0) -
             ((df['epfo_employee_count'] / 50.0) * 0.5)
         )
-        threshold = np.percentile(risk_score, 88)
+        threshold = np.percentile(risk_score, 16.67)  # Cutoff set at 16.67%
         df['is_default'] = (risk_score >= threshold).astype(int)
 
     X = df.drop(columns=['is_default'], errors='ignore')
@@ -73,18 +75,16 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
-    # Train robust classifier parameters with monotonic tracking constraints
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
-        scale_pos_weight=7, random_state=42, eval_metric='logloss',
+        scale_pos_weight=5, random_state=42, eval_metric='logloss',
         monotone_constraints=constraints
     )
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 
-# Layman terminology translator dictionary for explainable charts
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -108,7 +108,7 @@ col_sidebar, col_card = st.columns([1, 1.2])
 
 with col_sidebar:
     st.subheader("📥 Data Sync & Model Optimization Sandbox")
-    st.caption("Upload custom bank sheets to optimize model training rules, or download the current active dataset.")
+    st.caption("Upload custom bank sheets to optimize model training rules, or download current active datasets.")
     
     uploaded_bank_file = st.file_uploader(
         label="📤 Upload Bank Batch Update Data (CSV Format)",
@@ -116,7 +116,6 @@ with col_sidebar:
         help="Upload a dataset containing matching columns to overwrite baseline weights with customized telemetry."
     )
     
-    # Route logic to parse uploaded CSV structures safely and store active dataframe status
     is_using_custom_data = False
     if uploaded_bank_file is not None:
         try:
@@ -150,24 +149,33 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
+    # NEW DUAL-FILE SANDBOX SPLIT EXPORTER
     st.markdown("---")
-    st.subheader("📥 Export Active Sandbox Dataset")
+    st.subheader("📊 Data Split & Export Center")
+    st.caption("Download separated datasets filtered directly by your strict underwriting parameters.")
     
-    # ADAPTIVE DOWNLOAD LOGIC PIPELINE
-    # Converts whichever dataset is currently loaded directly into the download button stream
-    csv_bytes_to_download = active_dataset.to_csv(index=False).encode('utf-8')
+    # Mathematical Splitting Queries
+    approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
+    rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
     
-    if is_using_custom_data:
-        button_label = f"📥 Download Your Uploaded Bank Data ({len(active_dataset)} Rows)"
-        target_filename = "custom_bank_export_ledger.csv"
-    else:
-        button_label = "📥 Download Baseline Synthetic Database (1,200 Rows)"
-        target_filename = "msme_synthetic_credit_data.csv"
-
+    # Convert vectors into clean downloadable bytes streams
+    bytes_approved = approved_dataframe.to_csv(index=False).encode('utf-8')
+    bytes_rejected = rejected_dataframe.to_csv(index=False).encode('utf-8')
+    
+    # Render Download Button 1 (Elite Approved Group)
     st.download_button(
-        label=button_label,
-        data=csv_bytes_to_download,
-        file_name=target_filename,
+        label=f"🟢 Download Approved Merchants ({len(approved_dataframe)} Rows)",
+        data=bytes_approved,
+        file_name="approved_msme_credit_passport.csv",
+        mime="text/csv",
+        use_container_width=True
+    )
+    
+    # Render Download Button 2 (High-Risk Rejected Group)
+    st.download_button(
+        label=f"🔴 Download Rejected Merchants ({len(rejected_dataframe)} Rows)",
+        data=bytes_rejected,
+        file_name="rejected_msme_credit_passport.csv",
         mime="text/csv",
         use_container_width=True
     )
@@ -200,7 +208,7 @@ with col_card:
     st.subheader("📊 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0][1])
+    default_probability = float(prob_output)
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -229,7 +237,7 @@ with col_card:
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
     shap_values = explainer(profile_payload)
-    raw_impacts = shap_values.values[0] * -1
+    raw_impacts = shap_values.values * -1
     
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
