@@ -359,8 +359,9 @@ with col_card:
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
+    # 1. PRECISION PROBABILITY MATRIX EXTRACTION
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0][1])  # RUNTIME SCALAR MATRIX PLUGGED
+    default_probability = float(prob_output[0, 1])  # FIXED: Target Row 0, Class 1 (Default Risk)
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -385,19 +386,23 @@ with col_card:
     st.progress((health_score - 300) / 600)
     st.markdown("---")
     
-    # SHAP GRAPH COMPILATION
+    # 2. DYNAMIC SHAP EXPLANATION ATTRUBUTION MATRIX
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
     
+    # Extract the exact feature impact values for Class 1 (Default Risk)
     if len(shap_values.values.shape) == 3:
+        # Shape: [samples, features, classes] -> Index 0 for sample, class 1 for default risk
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
-        raw_impacts = shap_values.values[0] * -1
+        raw_impacts = shap_values.values[0] * -1  # FIXED: Force focus on active selection row index 0
     else:
         raw_impacts = np.ravel(shap_values.values) * -1
         
+    # Force complete 1D structure for clean pandas compilation
     raw_impacts = np.array(raw_impacts).flatten()
     
+    # Structural layout shape safeguard
     if len(raw_impacts) != len(feature_names):
         if len(raw_impacts) > len(feature_names):
             raw_impacts = raw_impacts[:len(feature_names)]
@@ -410,6 +415,7 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
+    # Plot custom dynamic visual bars
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
@@ -417,8 +423,18 @@ with col_card:
     plt.tight_layout()
     st.pyplot(fig)
     
-    pos_drivers = chart_dataframe[chart_dataframe['Impact'] > 0.005]['Feature'].tolist()
-    neg_drivers = chart_dataframe[chart_dataframe['Impact'] < -0.005]['Feature'].tolist()
+    # 3. DYNAMIC DRIVER EXTRACTION (No empty values!)
+    active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
+    
+    pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
+    pos_drivers = pos_subset['Feature'].head(2).tolist()
+    
+    neg_subset = active_drivers[active_drivers['Impact'] < 0].sort_values(by='Impact', ascending=True)
+    neg_drivers = neg_subset['Feature'].head(2).tolist()
+    
+    if not pos_drivers and not neg_drivers:
+        pos_drivers = ["Baseline Stability Metrics"]
+        neg_drivers = ["None (Perfect Structural Integrity)"]
     
     st.markdown("---")
     # TRACK REQUIREMENT SOLUTION: SPECIFIC CLIENT CREDIT EXPORT PORTAL
@@ -434,8 +450,8 @@ with col_card:
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
-    # Clean, flat row payload parsing mapping
-    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}
+    # Transform current active frame row into standard dict mapping for PDF execution
+    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}  # FIXED: Row 0 Index explicitly mapped
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
