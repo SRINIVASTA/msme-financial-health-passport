@@ -181,7 +181,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer.seek(0)
     return buffer.getvalue()
 # =====================================================================
-# 3. INTERACTIVE WEB FRONTEND FRAMEWORK (STREAMLIT APPRASIAL LAYER)
+# 3. INTERACTIVE SIDEBAR & BIDIRECTIONAL CONTROL ENGINE
 # =====================================================================
 st.title("🏦 AI-Driven MSME Financial Health Passport")
 st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. Translates alternative business registry vectors into automated, real-time risk credit scores.")
@@ -192,7 +192,7 @@ col_sidebar, col_card = st.columns([1, 1.2])
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
     
-    # EXPLICIT SELECTION TOGGLE PANEL
+    # SELECTION TOGGLE PANEL
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
@@ -227,25 +227,87 @@ with col_sidebar:
         st.caption("🟢 **Real-time API Ingestion Active**: Connected to simulated Account Aggregator and GSTN public rails via Unified Lending Interface (ULI) protocols.")
 
     st.markdown("---")
-    st.subheader("👤 Step 1: Input Business Client Specifications")
+    st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     
-    client_name = st.text_input("Enter Enterprise / Client Corporate Name", value="Sri Venkateswara Enterprises")
+    # AUTOMATED MSME INDEX IDENTIFIER SETUP
+    total_available_rows = len(active_dataset)
+    msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
     
-    with st.expander("💼 Bank Account Framework (Account Aggregator)", expanded=True):
-        input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, value=145000, step=5000)
-        input_ratio = st.slider("Money Inflow vs Outflow Ratio (Target above 1.0x)", 0.5, 2.0, 1.20, 0.05)
-        input_bounces = st.number_input("Cheque Bounces due to low funds (Last 3 Months)", min_value=0, max_value=12, value=0)
+    selected_msme_label = st.selectbox(
+        label="Choose target business entity to inspect:",
+        options=msme_options,
+        index=0,
+        help="Selecting a business code instantly pulls its row and auto-adjusts the controllers below."
+    )
+    
+    # Extract matching row index directly from selection
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
+    extracted_row_data = active_dataset.iloc[selected_row_index]
+    
+    # Assign client name dynamically using user box
+    client_name = st.text_input("Assign Corporate Display Name", value=f"Sri Venkateswara Enterprises ({selected_msme_label})")
+    
+    # DYNAMIC AUTO-ADJUSTING CONTROLLER FIELDS (Pre-filled with row data, allowing user modifications)
+    with st.expander("💼 Ingested Account Aggregator Records", expanded=True):
+        input_balance = st.number_input(
+            "Average Daily Balance kept in Bank (INR)", 
+            min_value=0, 
+            value=int(extracted_row_data['aa_avg_daily_balance_inr']), 
+            step=5000
+        )
+        input_ratio = st.slider(
+            "Money Inflow vs Outflow Ratio (Target above 1.0x)", 
+            0.5, 2.0, 
+            value=float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0)), 
+            step=0.05
+        )
+        input_bounces = st.number_input(
+            "Cheque Bounces due to low funds (Last 3 Months)", 
+            min_value=0, max_value=30, 
+            value=int(extracted_row_data['aa_fund_insufficient_bounces_3m'])
+        )
         
     with st.expander("📄 Tax & Sales Records (GST Portal)", expanded=True):
-        input_turnover = st.number_input("Average Monthly Sales/Turnover (INR)", min_value=0, value=520000, step=10000)
-        input_conc = st.slider("Dependency Risk (High means depending on 1 buyer)", 0.0, 1.0, 0.20, 0.05)
-        input_delay = st.number_input("Average Tax Filing Delay (Days)", min_value=0, max_value=30, value=1)
+        input_turnover = st.number_input(
+            "Average Monthly Sales/Turnover (INR)", 
+            min_value=0, 
+            value=int(extracted_row_data['gst_monthly_turnover_inr']), 
+            step=10000
+        )
+        input_conc = st.slider(
+            "Dependency Risk (High means depending on 1 buyer)", 
+            0.0, 1.0, 
+            value=float(np.clip(extracted_row_data['gst_buyer_concentration_ratio'], 0.0, 1.0)), 
+            step=0.05
+        )
+        input_delay = st.number_input(
+            "Average Tax Filing Delay (Days)", 
+            min_value=0, max_value=90, 
+            value=int(extracted_row_data['gst_filing_delay_days_avg'])
+        )
         
     with st.expander("📱 Everyday Digital Operations (UPI & Employee Data)", expanded=True):
-        input_upi_vol = st.number_input("Total UPI/QR Code Sales Transactions per Month", min_value=0, value=650)
-        input_upi_size = st.number_input("Average Bill Amount per Customer (INR)", min_value=10, value=420)
-        input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, value=8)
-        input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
+        input_upi_vol = st.number_input(
+            "Total UPI/QR Code Sales Transactions per Month", 
+            min_value=0, 
+            value=int(extracted_row_data['upi_tx_volume_monthly'])
+        )
+        input_upi_size = st.number_input(
+            "Average Bill Amount per Customer (INR)", 
+            min_value=10, 
+            value=int(extracted_row_data['upi_ticket_size_avg_inr'])
+        )
+        input_epfo_staff = st.number_input(
+            "Active Registered Staff Count", 
+            min_value=1, 
+            value=int(extracted_row_data['epfo_employee_count'])
+        )
+        input_epfo_score = st.slider(
+            "Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 
+            0.0, 1.0, 
+            value=float(np.clip(extracted_row_data['epfo_payment_punctuality_score'], 0.0, 1.0)), 
+            step=0.05
+        )
 
     st.markdown("---")
     st.subheader("📥 Master Data Export Controls")
@@ -267,7 +329,7 @@ with col_sidebar:
         use_container_width=True
     )
 
-# CONVERT INTERFACE DATA TO MODEL PAYLOAD
+# CONVERT INTERFACE DATA TO MODEL PAYLOAD (Captures the auto-adjusted sidebar state)
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -280,7 +342,9 @@ profile_payload = pd.DataFrame([{
     'epfo_employee_count': int(input_epfo_staff),
     'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
-
+# =====================================================================
+# 4. MAIN DISPLAY CARD & REQ-03 EXPORT OPERATIONS ENGINE
+# =====================================================================
 with col_card:
     if is_using_custom_data:
         st.subheader("📋 Active Uploaded Bank Registry Database")
@@ -296,7 +360,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0][1])  # MATRIX INDEX CHIP BUG PLUGGED
+    default_probability = float(prob_output[0][1])  # RUNTIME SCALAR MATRIX PLUGGED
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -321,22 +385,19 @@ with col_card:
     st.progress((health_score - 300) / 600)
     st.markdown("---")
     
-    # SAFELY COMPUTE & FORCE-FLATTEN UNDERLYING SHAP EXPLANATIONS
+    # SHAP GRAPH COMPILATION
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
     
-    # Matrix shape normalization parser gates
     if len(shap_values.values.shape) == 3:
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
-        raw_impacts = shap_values.values * -1
+        raw_impacts = shap_values.values[0] * -1
     else:
         raw_impacts = np.ravel(shap_values.values) * -1
         
-    # FORCE 1-DIMENSIONAL CONVERSION TO PREVENT PANDAS VALUEERROR
     raw_impacts = np.array(raw_impacts).flatten()
     
-    # Handle length alignment anomalies
     if len(raw_impacts) != len(feature_names):
         if len(raw_impacts) > len(feature_names):
             raw_impacts = raw_impacts[:len(feature_names)]
@@ -356,29 +417,25 @@ with col_card:
     plt.tight_layout()
     st.pyplot(fig)
     
-    # CAPTURE HELPERS AND HURTERS FOR DATA SYSTEMS AND PDF EXPORTS
     pos_drivers = chart_dataframe[chart_dataframe['Impact'] > 0.005]['Feature'].tolist()
     neg_drivers = chart_dataframe[chart_dataframe['Impact'] < -0.005]['Feature'].tolist()
     
     st.markdown("---")
-    # =====================================================================
     # TRACK REQUIREMENT SOLUTION: SPECIFIC CLIENT CREDIT EXPORT PORTAL
-    # =====================================================================
     st.subheader("📄 Export Specific Client Document")
     
-    # Professional badge highlighting that this satisfies a core track requirement
     st.markdown(
         f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-            <span style="color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
-            <span style="color: #212F3D;">Generates an instant, consent-backed, multidimensional Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
+            <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
+            <span style="background-color: transparent; color: #212F3D;">Generates an instant, consent-backed, multidimensional Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
         </div>""", 
-        unsafe_allow_html=True  # FIXED: Removed the accidental duplicated/misspelled parameter
+        unsafe_allow_html=True
     )
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
-    # Flatten single row mapping layout for clean PDF dict ingestion
-    flat_payload_dict = profile_payload.iloc[0].to_dict()
+    # Clean, flat row payload parsing mapping
+    flat_payload_dict = {k: v for k, v in profile_payload.iloc[0].to_dict().items()}
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
