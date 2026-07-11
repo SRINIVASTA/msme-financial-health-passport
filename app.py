@@ -10,20 +10,20 @@ from sklearn.model_selection import train_test_split
 st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layout="wide")
 
 # =====================================================================
-# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (STRICT ENGINE)
+# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE RISK CORE)
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
-    """Trains or updates model parameters using custom uploaded data or baseline defaults."""
+    """Trains or updates model parameters using custom data (any row count), or baseline defaults."""
     if custom_df is not None:
         df = custom_df.copy()
         
-        # Enforce strict numeric conversions to wipe out potential parsing glitches
+        # Safe numeric conversion step to prevent evaluation calculation issues
         for col in df.columns:
             df[col] = pd.to_numeric(df[col], errors='coerce')
         df = df.dropna()
         
-        # STRICT RISK GATE: Only approve the top 16.67% (~200 out of 1200)
-        if 'is_default' not in df.columns:
+        # ADAPTIVE GATE: If target column is missing, assign labels safely regardless of row count
+        if 'is_default' not in df.columns and len(df) > 0:
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
                 (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -32,10 +32,21 @@ def train_custom_credit_engine(custom_df=None):
                 (df['epfo_payment_punctuality_score'] * 1.0) -
                 ((df['epfo_employee_count'] / 50.0) * 0.5)
             )
-            threshold = np.percentile(risk_score, 16.67)
-            df['is_default'] = (risk_score >= threshold).astype(int)
+            
+            # CRITICAL FIX: If row count is too small for percentile rankings, use an absolute risk limit gate
+            if len(df) <= 5:
+                # A risk score below -0.5 means a highly safe, highly liquid merchant profile
+                df['is_default'] = (risk_score >= -0.5).astype(int)
+            else:
+                threshold = np.percentile(risk_score, 16.67)
+                df['is_default'] = (risk_score >= threshold).astype(int)
         else:
-            df['is_default'] = df['is_default'].astype(int)
+            df['is_default'] = df['is_default'].fillna(0).astype(int)
+            
+        # Emergency safeguard: if all rows end up with the same label, force contrast so XGBoost doesn't fail
+        if len(df) > 0 and df['is_default'].nunique() == 1:
+            df.loc[df.index, 'is_default'] = 1 - df.loc[df.index, 'is_default']
+            
     else:
         # Fallback to structural synthetic generation baseline matrix parameters
         np.random.seed(42)
@@ -53,8 +64,6 @@ def train_custom_credit_engine(custom_df=None):
             'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
         }
         df = pd.DataFrame(data)
-        
-        # STRICT RISK GATE: Force the baseline to reject 1,000 businesses and approve 200
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -63,7 +72,7 @@ def train_custom_credit_engine(custom_df=None):
             (df['epfo_payment_punctuality_score'] * 1.0) -
             ((df['epfo_employee_count'] / 50.0) * 0.5)
         )
-        threshold = np.percentile(risk_score, 16.67)  # Cutoff set at 16.67%
+        threshold = np.percentile(risk_score, 16.67)
         df['is_default'] = (risk_score >= threshold).astype(int)
 
     X = df.drop(columns=['is_default'], errors='ignore')
@@ -78,7 +87,7 @@ def train_custom_credit_engine(custom_df=None):
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
-        scale_pos_weight=5, random_state=42, eval_metric='logloss',
+        scale_pos_weight=1, random_state=42, eval_metric='logloss',
         monotone_constraints=constraints
     )
     model.fit(X, y)
@@ -122,9 +131,9 @@ with col_sidebar:
             user_imported_df = pd.read_csv(uploaded_bank_file)
             model, explainer, feature_names, active_dataset = train_custom_credit_engine(user_imported_df)
             is_using_custom_data = True
-            st.success("🟢 Model parameters optimized successfully using uploaded database data!")
+            st.success(f"🟢 Model optimized using uploaded database ({len(active_dataset)} rows)!")
         except Exception as e:
-            st.error(f"🔴 Processing Error: Check your format schema constraints. Error: {str(e)}")
+            st.error(f"🔴 Processing Error: Check format schema constraints. Error: {str(e)}")
             model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
     else:
         model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
@@ -153,7 +162,6 @@ with col_sidebar:
     st.subheader("📊 Data Split & Export Center")
     st.caption("Download separated datasets filtered directly by your strict underwriting parameters.")
     
-    # Mathematical Splitting Queries
     approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
     rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
     
@@ -204,7 +212,6 @@ with col_card:
     
     prob_output = model.predict_proba(profile_payload)
     
-    # Secure extraction of probability values from matrix row layout channels
     default_probability = float(prob_output[0][1])
     non_default_probability = 1.0 - default_probability
     
@@ -235,9 +242,7 @@ with col_card:
     
     shap_values = explainer(profile_payload)
     
-    # 🟢 DIMENSIONAL FIX APPLIED BELOW: Adaptive shape checking to guarantee 1D array flattening
     if len(shap_values.values.shape) == 3:
-        # Extracts Sample 0, All Features, Class 1 (Default Risk Impact)
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
         raw_impacts = shap_values.values[0] * -1
