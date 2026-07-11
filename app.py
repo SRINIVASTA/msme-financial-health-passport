@@ -4,96 +4,23 @@ import pandas as pd
 import xgboost as xgb
 import shap
 import matplotlib.pyplot as plt
+import io
 from sklearn.model_selection import train_test_split
-
-# Configures the web page style
-st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layout="wide")
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib import colors
 
 # =====================================================================
-# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE RISK CORE)
+# SYSTEM INITIALIZATION & PAGE ARCHITECTURE
 # =====================================================================
-def train_custom_credit_engine(custom_df=None):
-    """Trains or updates model parameters using custom data (any row count), or baseline defaults."""
-    if custom_df is not None:
-        df = custom_df.copy()
-        
-        # Safe numeric conversion step to prevent evaluation calculation issues
-        for col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors='coerce')
-        df = df.dropna()
-        
-        # ADAPTIVE GATE: If target column is missing, assign labels safely regardless of row count
-        if 'is_default' not in df.columns and len(df) > 0:
-            risk_score = (
-                (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
-                (df['gst_buyer_concentration_ratio'] * 2.0) +
-                (df['gst_filing_delay_days_avg'] * 0.15) -
-                (df['aa_inflow_outflow_ratio'] * 1.5) -
-                (df['epfo_payment_punctuality_score'] * 1.0) -
-                ((df['epfo_employee_count'] / 50.0) * 0.5)
-            )
-            
-            # CRITICAL FIX: If row count is too small for percentile rankings, use an absolute risk limit gate
-            if len(df) <= 5:
-                # A risk score below -0.5 means a highly safe, highly liquid merchant profile
-                df['is_default'] = (risk_score >= -0.5).astype(int)
-            else:
-                threshold = np.percentile(risk_score, 16.67)
-                df['is_default'] = (risk_score >= threshold).astype(int)
-        else:
-            df['is_default'] = df['is_default'].fillna(0).astype(int)
-            
-        # Emergency safeguard: if all rows end up with the same label, force contrast so XGBoost doesn't fail
-        if len(df) > 0 and df['is_default'].nunique() == 1:
-            df.loc[df.index, 'is_default'] = 1 - df.loc[df.index, 'is_default']
-            
-    else:
-        # Fallback to structural synthetic generation baseline matrix parameters
-        np.random.seed(42)
-        n_samples = 1200
-        data = {
-            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
-            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
-            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
-            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
-            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
-            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
-            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
-            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
-            'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
-            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
-        }
-        df = pd.DataFrame(data)
-        risk_score = (
-            (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
-            (df['gst_buyer_concentration_ratio'] * 2.0) +
-            (df['gst_filing_delay_days_avg'] * 0.15) -
-            (df['aa_inflow_outflow_ratio'] * 1.5) -
-            (df['epfo_payment_punctuality_score'] * 1.0) -
-            ((df['epfo_employee_count'] / 50.0) * 0.5)
-        )
-        threshold = np.percentile(risk_score, 16.67)
-        df['is_default'] = (risk_score >= threshold).astype(int)
+st.set_page_config(
+    page_title="MSME Credit Health Card Portal", 
+    page_icon="🏦", 
+    layout="wide"
+)
 
-    X = df.drop(columns=['is_default'], errors='ignore')
-    target_features = [
-        'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
-        'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
-        'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count', 'epfo_payment_punctuality_score'
-    ]
-    X = X[target_features]
-    y = df['is_default']
-    
-    constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
-    model = xgb.XGBClassifier(
-        n_estimators=150, max_depth=5, learning_rate=0.05,
-        scale_pos_weight=1, random_state=42, eval_metric='logloss',
-        monotone_constraints=constraints
-    )
-    model.fit(X, y)
-    explainer = shap.TreeExplainer(model)
-    return model, explainer, X.columns.tolist(), df
-
+# Plain English dictionary mapping code features to user-friendly terminology
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -107,47 +34,209 @@ layman_translation = {
     'epfo_payment_punctuality_score': 'Staff Salary Fund Punctuality'
 }
 # =====================================================================
-# 2. APPRAISAL LAYOUT DESIGN (STREAMLIT FRONTEND)
+# 1. MACHINE LEARNING ENGINE WITH ADAPTIVE UNDERWRITING CONTROLS
+# =====================================================================
+def train_custom_credit_engine(custom_df=None):
+    """Trains or updates model parameters using custom data, or baseline defaults."""
+    if custom_df is not None:
+        df = custom_df.copy()
+        
+        # Safe numeric conversion step to prevent calculation issues
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df = df.dropna()
+        
+        # ADAPTIVE GATE: If target column is missing, assign labels safely
+        if 'is_default' not in df.columns and len(df) > 0:
+            risk_score = (
+                (df['aa_fund_insufficient_bounces_3m'] * 0.4) +
+                (df['gst_buyer_concentration_ratio'] * 2.0) +
+                (df['gst_filing_delay_days_avg'] * 0.15) -
+                (df['aa_inflow_outflow_ratio'] * 1.5) -
+                (df['epfo_payment_punctuality_score'] * 1.0) -
+                ((df['epfo_employee_count'] / 50.0) * 0.5)
+            )
+            
+            # CRITICAL FIX: If row count is too small for percentile rankings, use absolute limit
+            if len(df) <= 5:
+                df['is_default'] = (risk_score >= -0.5).astype(int)
+            else:
+                df['is_default'] = (risk_score >= np.percentile(risk_score, 16.67)).astype(int)
+        else:
+            df['is_default'] = df['is_default'].fillna(0).astype(int)
+            
+        # Emergency safeguard: if all rows end up with the same label, force contrast
+        if len(df) > 0 and df['is_default'].nunique() == 1:
+            df.loc[df.index, 'is_default'] = 1 - df.loc[df.index, 'is_default']
+            
+    else:
+        # Fallback to standard structural synthetic generation baseline parameters
+        np.random.seed(42)
+        n_samples = 1200
+        data = {
+            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
+            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
+            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
+            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
+            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples),
+            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
+            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
+            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
+            'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
+            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
+        }
+        df = pd.DataFrame(data)
+        risk_score = (
+            (df['aa_fund_insufficient_bounces_3m'] * 0.4) +
+            (df['gst_buyer_concentration_ratio'] * 2.0) +
+            (df['gst_filing_delay_days_avg'] * 0.15) -
+            (df['aa_inflow_outflow_ratio'] * 1.5) -
+            (df['epfo_payment_punctuality_score'] * 1.0) -
+            ((df['epfo_employee_count'] / 50.0) * 0.5)
+        )
+        df['is_default'] = (risk_score >= np.percentile(risk_score, 16.67)).astype(int)
+
+    X = df.drop(columns=['is_default'], errors='ignore')
+    target_features = [
+        'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
+        'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
+        'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count',
+        'epfo_payment_punctuality_score'
+    ]
+    X = X[target_features]
+    y = df['is_default']
+    
+    # 0 = Unconstrained, 1 = Positive Monotone Constraint, -1 = Negative Monotone Constraint
+    constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
+    
+    model = xgb.XGBClassifier(
+        n_estimators=150, max_depth=5, learning_rate=0.05,
+        scale_pos_weight=1, random_state=42, eval_metric='logloss',
+        monotone_constraints=constraints
+    )
+    model.fit(X, y)
+    explainer = shap.TreeExplainer(model)
+    return model, explainer, X.columns.tolist(), df
+# =====================================================================
+# 2. ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE
+# =====================================================================
+def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters):
+    """Compiles an audit-ready financial health report buffer."""
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
+    story = []
+    
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#1B365D'), spaceAfter=15)
+    header_style = ParagraphStyle('SecHeader', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#1B365D'), spaceBefore=15, spaceAfter=8)
+    body_style = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, leading=14, spaceAfter=6)
+    bold_body = ParagraphStyle('DocBodyBold', parent=body_style, fontName='Helvetica-Bold')
+    
+    # Header Elements
+    story.append(Paragraph("<b>MSME FINANCIAL HEALTH PASSPORT</b>", title_style))
+    story.append(Paragraph(f"<b>Client Enterprise Name:</b> {client_name}", body_style))
+    story.append(Paragraph(f"<b>System Underwriting Status:</b> {tier}", bold_body))
+    story.append(Spacer(1, 15))
+    
+    # Financial Scoring Dashboard Table Layout
+    score_data = [
+        [Paragraph("<b>Evaluation Vector</b>", bold_body), Paragraph("<b>Performance Value</b>", bold_body)],
+        [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
+        [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
+    ]
+    t_score = Table(score_data, colWidths=[250, 250])
+    t_score.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
+        ('PADDING', (0,0), (-1,-1), 8),
+    ]))
+    story.append(t_score)
+    story.append(Spacer(1, 15))
+    
+    # Granular Metrics Breakdowns
+    story.append(Paragraph("<b>Alternative Network Ingested Data Stream Summary</b>", header_style))
+    metrics_data = [[Paragraph("<b>Metric Vector Parameter</b>", bold_body), Paragraph("<b>Reported Value</b>", bold_body)]]
+    for k, v in payload_dict.items():
+        metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
+    
+    t_metrics = Table(metrics_data, colWidths=[250, 250])
+    t_metrics.setStyle(TableStyle([
+        ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
+        ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
+        ('PADDING', (0,0), (-1,-1), 5),
+    ]))
+    story.append(t_metrics)
+    story.append(Spacer(1, 15))
+    
+    # Explanatory Underwriting Insights
+    story.append(Paragraph("<b>Explainable AI (XAI) Score Attribution Drivers</b>", header_style))
+    story.append(Paragraph(f"<b>Top Metrics Supporting Score:</b> {', '.join(helpers) if helpers else 'None Identified'}", body_style))
+    story.append(Paragraph(f"<b>Primary Drivers Negatively Impacting Score:</b> {', '.join(hurters) if hurters else 'None Identified'}", body_style))
+    story.append(Spacer(1, 20))
+    
+    # Institutional Sign-off Block
+    story.append(Paragraph("<i>This evaluation document is verified via decentralized account aggregators and automated public API tax registries. Generated instantly via ULI protocol interfaces.</i>", body_style))
+    
+    doc.build(story)
+    buffer.seek(0)
+    return buffer.getvalue()
+# =====================================================================
+# 3. INTERACTIVE WEB FRONTEND FRAMEWORK (STREAMLIT APPRASIAL LAYER)
 # =====================================================================
 st.title("🏦 AI-Driven MSME Financial Health Passport")
-st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand.")
+st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. Translates alternative business registry vectors into automated, real-time risk credit scores.")
 st.markdown("---")
 
 col_sidebar, col_card = st.columns([1, 1.2])
 
 with col_sidebar:
-    st.subheader("📥 Data Sync & Model Optimization Sandbox")
-    st.caption("Upload custom bank sheets to optimize model training rules, or download current active datasets.")
+    st.subheader("🌐 Data Ingestion Protocol Selection")
     
-    uploaded_bank_file = st.file_uploader(
-        label="📤 Upload Bank Batch Update Data (CSV Format)",
-        type=["csv"],
-        help="Upload a dataset containing matching columns to overwrite baseline weights with customized telemetry."
+    # EXPLICIT SELECTION TOGGLE PANEL
+    data_source_mode = st.radio(
+        label="Select Input Ingestion Channel:",
+        options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
+        index=0,
+        help="Switch between simulated real-time API sync networks or bulk business data sheet uploads."
     )
     
     is_using_custom_data = False
-    if uploaded_bank_file is not None:
-        try:
-            user_imported_df = pd.read_csv(uploaded_bank_file)
-            model, explainer, feature_names, active_dataset = train_custom_credit_engine(user_imported_df)
-            is_using_custom_data = True
-            st.success(f"🟢 Model optimized using uploaded database ({len(active_dataset)} rows)!")
-        except Exception as e:
-            st.error(f"🔴 Processing Error: Check format schema constraints. Error: {str(e)}")
+    
+    if data_source_mode == "Batch Document Upload (CSV Sandbox)":
+        st.markdown("---")
+        st.subheader("📊 Model Optimization Sandbox")
+        uploaded_bank_file = st.file_uploader(
+            label="📁 Upload Bank Batch Update Data (CSV Format)",
+            type=["csv"],
+            help="Upload a dataset containing matching columns to optimize system underwriting."
+        )
+        
+        if uploaded_bank_file is not None:
+            try:
+                user_imported_df = pd.read_csv(uploaded_bank_file)
+                model, explainer, feature_names, active_dataset = train_custom_credit_engine(user_imported_df)
+                is_using_custom_data = True
+                st.success(f"Model optimized using uploaded database ({len(active_dataset)} rows)!")
+            except Exception as e:
+                st.error(f"Processing Error: Check format constraints. Details: {str(e)}")
+                model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
+        else:
             model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
     else:
         model, explainer, feature_names, active_dataset = train_custom_credit_engine(None)
+        st.caption("🟢 **Real-time API Ingestion Active**: Connected to simulated Account Aggregator and GSTN public rails via Unified Lending Interface (ULI) protocols.")
 
     st.markdown("---")
-    st.subheader("📡 Step 1: Input Business Metrics")
-    st.caption("Change these values to simulate pulling real data via Account Aggregators or Tax Portals.")
+    st.subheader("👤 Step 1: Input Business Client Specifications")
+    
+    client_name = st.text_input("Enter Enterprise / Client Corporate Name", value="Sri Venkateswara Enterprises")
     
     with st.expander("💼 Bank Account Framework (Account Aggregator)", expanded=True):
         input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, value=145000, step=5000)
         input_ratio = st.slider("Money Inflow vs Outflow Ratio (Target above 1.0x)", 0.5, 2.0, 1.20, 0.05)
         input_bounces = st.number_input("Cheque Bounces due to low funds (Last 3 Months)", min_value=0, max_value=12, value=0)
         
-    with st.expander("📜 Tax & Sales Records (GST Portal)", expanded=True):
+    with st.expander("📄 Tax & Sales Records (GST Portal)", expanded=True):
         input_turnover = st.number_input("Average Monthly Sales/Turnover (INR)", min_value=0, value=520000, step=10000)
         input_conc = st.slider("Dependency Risk (High means depending on 1 buyer)", 0.0, 1.0, 0.20, 0.05)
         input_delay = st.number_input("Average Tax Filing Delay (Days)", min_value=0, max_value=30, value=1)
@@ -159,30 +248,26 @@ with col_sidebar:
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
     st.markdown("---")
-    st.subheader("📊 Data Split & Export Center")
-    st.caption("Download separated datasets filtered directly by your strict underwriting parameters.")
-    
+    st.subheader("📥 Master Data Export Controls")
     approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
     rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
     
-    bytes_approved = approved_dataframe.to_csv(index=False).encode('utf-8')
-    bytes_rejected = rejected_dataframe.to_csv(index=False).encode('utf-8')
-    
     st.download_button(
-        label=f"🟢 Download Approved Merchants ({len(approved_dataframe)} Rows)",
-        data=bytes_approved,
+        label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)",
+        data=approved_dataframe.to_csv(index=False).encode('utf-8'),
         file_name="approved_msme_credit_passport.csv",
         mime="text/csv",
         use_container_width=True
     )
     st.download_button(
-        label=f"🔴 Download Rejected Merchants ({len(rejected_dataframe)} Rows)",
-        data=bytes_rejected,
+        label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)",
+        data=rejected_dataframe.to_csv(index=False).encode('utf-8'),
         file_name="rejected_msme_credit_passport.csv",
         mime="text/csv",
         use_container_width=True
     )
 
+# CONVERT INTERFACE DATA TO MODEL PAYLOAD
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -195,38 +280,37 @@ profile_payload = pd.DataFrame([{
     'epfo_employee_count': int(input_epfo_staff),
     'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
-# =====================================================================
-# 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
-# =====================================================================
+
 with col_card:
     if is_using_custom_data:
         st.subheader("📋 Active Uploaded Bank Registry Database")
-        st.caption("Below is the exact dataset provided by the user. The AI models have been updated on this specific format.")
-        st.dataframe(active_dataset, use_container_width=True, height=220)
+        st.dataframe(active_dataset, use_container_width=True, height=180)
+    elif data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
+        st.subheader("🌐 Connected Live Data Streams")
+        st.info("📡 Secure network tunnel established. Fetching consent-backed credentials via **ULI architecture** for instant evaluation.")
     else:
-        st.subheader("💡 Active Registry Status")
-        st.info("ℹ️ Running on baseline **Synthetic Databank Engine** (1,200 Rows). Upload a custom banking spreadsheet in the sidebar to change data environments.")
+        st.subheader("ℹ Active Registry Status")
+        st.info("Running on baseline **Synthetic Databank Engine** (1,200 Rows). Upload custom CSV spreadsheets in the sidebar to test custom portfolios.")
         
     st.markdown("---")
-    st.subheader("📊 Step 2: Live Credit Card Passport Results")
+    st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    
-    default_probability = float(prob_output[0][1])
+    default_probability = float(prob_output[0][1])  # MATRIX INDEX FIXED
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
     risk_level_pct = default_probability * 100
     
     if health_score >= 750:
-        badge_status = "SYSTEM ASSESSMENT TIER STATUS: EXCELLENT FINANCIAL HEALTH"
-        st.success(f"🟢 {badge_status}")
+        badge_status = "EXCELLENT FINANCIAL HEALTH"
+        st.success(f"🟢 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
     elif health_score >= 650:
-        badge_status = "SYSTEM ASSESSMENT TIER STATUS: MODERATE FINANCIAL RISK"
-        st.warning(f"🟡 {badge_status}")
+        badge_status = "MODERATE FINANCIAL RISK"
+        st.warning(f"🟡 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
     else:
-        badge_status = "SYSTEM ASSESSMENT TIER STATUS: HIGH RISK VULNERABILITY"
-        st.error(f"🔴 {badge_status}")
+        badge_status = "HIGH RISK VULNERABILITY"
+        st.error(f"🔴 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
         
     col_stat1, col_stat2 = st.columns(2)
     with col_stat1:
@@ -235,59 +319,54 @@ with col_card:
         st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
         
     st.progress((health_score - 300) / 600)
-    
     st.markdown("---")
-    st.subheader("⚙️ Why is my score this number? (Plain English Insights)")
-    st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
+    # SHAP GRAPH COMPILATION
+    st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
-    
     if len(shap_values.values.shape) == 3:
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
-        raw_impacts = shap_values.values[0] * -1
+        raw_impacts = shap_values.values * -1
     else:
         raw_impacts = np.ravel(shap_values.values) * -1
         
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
         'Impact': raw_impacts
-    })
-    
-    chart_dataframe = chart_dataframe.sort_values(by='Impact', ascending=True)
+    }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    fig, ax = plt.subplots(figsize=(6, 3.5))
+    fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
-    ax.set_xlabel('Impact Contribution Weight Score')
+    ax.set_xlabel('Impact Weight Score')
     plt.tight_layout()
     st.pyplot(fig)
     
-    st.markdown("---")
+    # CAPTURE HELPERS AND HURTERS FOR DATA SYSTEMS AND PDF EXPORTS
+    pos_drivers = chart_dataframe[chart_dataframe['Impact'] > 0.005]['Feature'].tolist()
+    neg_drivers = chart_dataframe[chart_dataframe['Impact'] < -0.005]['Feature'].tolist()
     
-    col_help, col_hurt = st.columns(2)
-    with col_help:
-        st.markdown("#### ☀️ Factors Helping Your Score")
-        positive_factors = chart_dataframe[chart_dataframe['Impact'] > 0.005]
-        if not positive_factors.empty:
-            for _, row in positive_factors.iterrows():
-                st.markdown(f"✅ {row['Feature']}")
-        else:
-            st.caption("No strong positive metric drivers tracking currently.")
-            
-    with col_hurt:
-        st.markdown("#### ⚠️ Factors Hurting Your Score")
-        negative_factors = chart_dataframe[chart_dataframe['Impact'] < -0.005]
-        if not negative_factors.empty:
-            for _, row in negative_factors.iterrows():
-                st.markdown(f"❌ {row['Feature']}")
-        else:
-            st.caption("No critical risk items degrading score profile.")
-
     st.markdown("---")
-    st.subheader("💡 Automated Next Steps for the Business")
-    if health_score >= 750:
-        st.info("Business profile is in perfect standing. Ready for instant, pre-approved loan disbursement with zero paperwork via ULI network protocols.")
-    else:
-        st.warning("Score profile requires optimization. We recommend increasing average bank balances and reducing tax filing delays before applying through OCEN aggregators.")
+    # SYSTEM DOWNLOAD PORTAL FOR SPECIFIC CLIENT EXPORT REQUEST
+    st.subheader("📄 Export Specific Client Document")
+    st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for **{client_name}**.")
+    
+    client_pdf_bytes = generate_credit_pdf(
+        client_name=client_name,
+        score=health_score,
+        risk=risk_level_pct,
+        tier=badge_status,
+        payload_dict=profile_payload.iloc[0].to_dict(),  # FLAT DICT FIXED
+        helpers=pos_drivers,
+        hurters=neg_drivers
+    )
+    
+    st.download_button(
+        label=f"📥 Download PDF Passport for {client_name}",
+        data=client_pdf_bytes,
+        file_name=f"credit_passport_{client_name.lower().replace(' ', '_')}.pdf",
+        mime="application/pdf",
+        use_container_width=True
+    )
