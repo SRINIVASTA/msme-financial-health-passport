@@ -321,8 +321,6 @@ profile_payload = pd.DataFrame([{
     'epfo_payment_punctuality_score': float(st.session_state["sb_epfo_score"])
     }])
     
----
-
 ### Updated Block 5: Dashboard Output Grid & State-Synchronized Evaluation
 ```python
 # =====================================================================
