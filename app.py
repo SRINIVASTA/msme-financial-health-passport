@@ -320,7 +320,9 @@ with col_card:
     prob_output = model.predict_proba(profile_payload)
     
     # 🎯 TARGETS SCALAR COORDINATE EXPLICITLY TO UNLOCK SCORE CHANNELS FOR NEWLY RETRAINED MODEL
-    default_probability = float(prob_output)  
+    
+    default_probability = float(prob_output[0, 1])  
+
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
