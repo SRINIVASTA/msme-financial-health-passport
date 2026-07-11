@@ -244,7 +244,7 @@ with col_sidebar:
         on_change=sync_inputs_to_selected_row
     )
     
-    selected_row_index = int(selected_msme_label.split("-")) - 1
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
     if "sb_balance" not in st.session_state:
