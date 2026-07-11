@@ -320,7 +320,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output)  # Matrix array coordinates fully synchronized
+    default_probability = float(prob_output[0, 1])  # Targets row 0, column 1
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
