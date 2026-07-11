@@ -72,7 +72,6 @@ layman_translation = {
     'epfo_employee_count': 'Employee Headcount Size',
     'epfo_payment_punctuality_score': 'Staff Salary Fund Punctuality'
 }
-
 # =====================================================================
 # 2. APPRAISAL LAYOUT DESIGN (STREAMLIT FRONTEND)
 # =====================================================================
@@ -155,42 +154,41 @@ profile_payload = pd.DataFrame([{
     'epfo_employee_count': int(input_epfo_staff),
     'epfo_payment_punctuality_score': float(input_epfo_score)
 }])
-
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
 with col_card:
-    st.subheader("📑 Step 2: Live Credit Card Passport Results")
+    st.subheader("📊 Step 2: Live Credit Card Passport Results")
     
-    # Calculate raw default probability
-    # model.predict_proba returns [prob_non_default, prob_default]
-    prob_array = model.predict_proba(profile_payload)[0]
-    default_prob = prob_array[1]
-    non_default_prob = prob_array[0]
+    # Calculate probability metrics safely
+    prob_output = model.predict_proba(profile_payload)[0]
+    default_probability = float(prob_output[1])
+    non_default_probability = float(prob_output[0])
     
-    # Scale non-default probability cleanly into the traditional financial range (300 to 900)
-    computed_passport_score = int(300 + (non_default_prob * 600))
+    # Assign health_score mapped to traditional financial standard system ranges (300 to 900)
+    health_score = int(300 + (non_default_probability * 600))
+    risk_level_pct = default_probability * 100
     
-    # Apply baseline styling indicators based on risk categories
-    if computed_passport_score >= 750:
-        badge_status = "🟢 SYSTEM ASSESSMENT TIER STATUS: EXCELLENT FINANCIAL HEALTH"
-    elif computed_passport_score >= 650:
-        badge_status = "🟡 SYSTEM ASSESSMENT TIER STATUS: MODERATE FINANCIAL RISK"
+    # Assign system assessment statuses based on score thresholds
+    if health_score >= 750:
+        badge_status = "SYSTEM ASSESSMENT TIER STATUS: EXCELLENT FINANCIAL HEALTH"
+        st.success(f"🟢 {badge_status}")
+    elif health_score >= 650:
+        badge_status = "SYSTEM ASSESSMENT TIER STATUS: MODERATE FINANCIAL RISK"
+        st.warning(f"🟡 {badge_status}")
     else:
-        badge_status = "🔴 SYSTEM ASSESSMENT TIER STATUS: HIGH RISK VULNERABILITY"
+        badge_status = "SYSTEM ASSESSMENT TIER STATUS: HIGH RISK VULNERABILITY"
+        st.error(f"🔴 {badge_status}")
         
-    # Visual presentation layout parameters matching your screenshot
-    st.write(f"### Your Financial Health Score: **{computed_passport_score} / 900**")
-    st.write(f"Estimated Risk Level: **{default_prob * 100:.2f}%**")
-    
-    if computed_passport_score >= 750:
-        st.success(badge_status)
-    elif computed_passport_score >= 650:
-        st.warning(badge_status)
-    else:
-        st.error(badge_status)
+    # Visual grid layouts for stats matching your original UI
+    col_stat1, col_stat2 = st.columns(2)
+    with col_stat1:
+        st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
+    with col_stat2:
+        st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
         
-    st.progress((computed_passport_score - 300) / 600)
+    # Linear graphical slider matching layout benchmarks
+    st.progress((health_score - 300) / 600)
     
     st.markdown("---")
     st.subheader("⚙️ Why is my score this number? (Plain English Insights)")
@@ -199,23 +197,20 @@ with col_card:
     # Compute underlying SHAP explanation layers
     shap_values = explainer(profile_payload)
     
-    # INVERSION FIX: Multiply SHAP values by -1 because we are predicting 
-    # financial health (non-default) rather than default probability risk.
+    # INVERSION FIX: Invert SHAP values so positive values represent positive score contributors
     raw_impacts = shap_values.values[0] * -1
     
-    # Format and translate tracking labels
+    # Format data array matrices
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
         'Impact': raw_impacts
     })
     
-    # Sort attributes to reveal dominant indicators
+    # Sort impacts for cleaner charting
     chart_dataframe = chart_dataframe.sort_values(by='Impact', ascending=True)
-    
-    # Dynamic coloration mapping: Positive impacts are green (help), negative are red (hurt)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Generate clean matplotlib horizontal bar graph
+    # Generate clean horizontal explanation graphs
     fig, ax = plt.subplots(figsize=(6, 3.5))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
@@ -225,130 +220,29 @@ with col_card:
     
     st.markdown("---")
     
-    # Split the sorted factors into helping vs hurting columns for your UI checkmarks
+    # Dynamic columns showing bullet points of helping/hurting factors
     col_help, col_hurt = st.columns(2)
-    
     with col_help:
-        st.markdown("### ☀️ Factors Helping Your Score")
-        positive_factors = chart_dataframe[chart_dataframe['Impact'] > 0]
+        st.markdown("#### ☀️ Factors Helping Your Score")
+        positive_factors = chart_dataframe[chart_dataframe['Impact'] >= 0]
         if not positive_factors.empty:
             for _, row in positive_factors.iterrows():
-                st.success(f"✅ {row['Feature']}")
+                st.markdown(f"✅ {row['Feature']}")
         else:
-            st.caption("No positive metric adjustments recorded.")
+            st.caption("No positive metric drivers tracking currently.")
             
     with col_hurt:
-        st.markdown("### ⚠️ Factors Hurting Your Score")
+        st.markdown("#### ⚠️ Factors Hurting Your Score")
         negative_factors = chart_dataframe[chart_dataframe['Impact'] < 0]
         if not negative_factors.empty:
             for _, row in negative_factors.iterrows():
-                st.error(f"❌ {row['Feature']}")
+                st.markdown(f"❌ {row['Feature']}")
         else:
-            st.caption("No critical risk points dragging down score.")
+            st.caption("No critical risk items degrading score profile.")
 
     st.markdown("---")
     st.subheader("💡 Automated Next Steps for the Business")
-    if computed_passport_score >= 750:
+    if health_score >= 750:
         st.info("Business profile is in perfect standing. Ready for instant, pre-approved loan disbursement with zero paperwork via ULI network protocols.")
     else:
         st.warning("Score profile requires optimization. We recommend increasing average bank balances and reducing tax filing delays before applying through OCEN aggregators.")
-
-# =====================================================================
-# 4. RENDER FINANCIAL HEALTH CARD VIEW PANEL (RIGHT SIDE)
-# =====================================================================
-with col_card:
-    st.subheader("💳 Step 2: Live Credit Card Passport Results")
-    
-    # Visual metrics block displays
-    metric_1, metric_2 = st.columns(2)
-    with metric_1:
-        st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
-    with metric_2:
-        st.metric(label="Estimated Risk Level", value=f"{prob_default * 100:.2f}%")
-        
-    # Render interactive status color banner
-    alert_box(f"🎯 **System Assessment Tier Status:** {tier}")
-    
-    st.markdown("---")
-    st.subheader("⚖️ Why is my score this number? (Plain English Insights)")
-    st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
-    
-    # Process Explainability engine data tracking 1D elements safely
-    shap_output = explainer(profile_payload)
-    
-    # Target index to extract the raw 1D array out of SHAP's matrix payload
-    feature_impacts = dict(zip(feature_names, shap_output.values[0]))
-    
-    # Isolate top vectors based on pure positive vs negative scalar thresholds
-    top_risks = sorted([item for item in feature_impacts.items() if item[1] > 0.001], key=lambda x: x[1], reverse=True)[:2]
-    top_strengths = sorted([item for item in feature_impacts.items() if item[1] < -0.001], key=lambda x: x[1])[:2]
-    
-    # 🎨 --- NEW DYNAMIC MATPLOTLIB VISUALIZATION GENERATOR ---
-    # This automatically compiles the exact mathematical drivers into a clean, horizontal visual bar chart
-    plot_features = []
-    plot_weights = []
-    plot_colors = []
-    
-    # Add risks (pointing right or colored red to show negative impact to the borrower)
-    for name, weight in reversed(top_risks):
-        plot_features.append(layman_translation[name])
-        plot_weights.append(weight)
-        plot_colors.append('#e74c3c')  # Bold warning red
-        
-    # Add strengths (pointing left or colored green to show positive protective impact)
-    for name, weight in top_strengths:
-        plot_features.append(layman_translation[name])
-        plot_weights.append(weight)
-        plot_colors.append('#2ecc71')  # Emerald green
-        
-    if plot_features:
-        fig, ax = plt.subplots(figsize=(7, 3))
-        fig.patch.set_facecolor('#ffffff')
-        ax.set_facecolor('#ffffff')
-        
-        # Eliminate background box borders for an elegant, modern web interface look
-        ax.spines['top'].set_visible(False)
-        ax.spines['right'].set_visible(False)
-        ax.spines['left'].set_color('#bdc3c7')
-        ax.spines['bottom'].set_color('#bdc3c7')
-        
-        # Build horizontal bar layout chart
-        bars = ax.barh(plot_features, plot_weights, color=plot_colors, height=0.4)
-        ax.axvline(x=0, color='#7f8c8d', linestyle='--', linewidth=0.8) # Base equilibrium line
-        ax.set_xlabel("Impact Contribution Weight Score", fontsize=9, color="#34495e")
-        ax.tick_params(axis='both', which='major', labelsize=9, colors='#2c3e50')
-        
-        # Put clean numeric value anchors directly beside the bars
-        for bar in bars:
-            width = bar.get_width()
-            ha_val = 'left' if width >= 0 else 'right'
-            offset = 0.002 if width >= 0 else -0.002
-            ax.text(width + offset, bar.get_y() + bar.get_height()/2, f'{width:+.3f}', 
-                    va='center', ha=ha_val, fontsize=8, weight='bold', color='#34495e')
-            
-        # Pushes the live Matplotlib plot engine context directly into the Streamlit layout canvas
-        st.pyplot(fig)
-    # 🎨 --- VISUALIZATION GENERATOR ENDS HERE ---
-
-    st.markdown("---")
-    col_str, col_risk = st.columns(2)
-    with col_str:
-        st.markdown("🌟 **Factors Helping Your Score**")
-        if top_strengths:
-            for feat, val in top_strengths:
-                st.markdown(f"✅ {layman_translation[feat]}")
-        else:
-            st.write("No major positive indicators found.")
-            
-    with col_risk:
-        st.markdown("⚠️ **Factors Hurting Your Score**")
-        if top_risks:
-            for feat, val in top_risks:
-                st.markdown(f"❌ {layman_translation[feat]}")
-        else:
-            st.write("Excellent! No active risk flags are dragging down your score.")
-            
-    # Display Actionable Next Steps
-    st.markdown("---")
-    st.subheader("💡 Automated Next Steps for the Business")
-    st.info(nudge)
