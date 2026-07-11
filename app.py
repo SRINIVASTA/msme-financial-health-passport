@@ -23,7 +23,8 @@ def train_custom_credit_engine(custom_df=None):
                 (df['gst_buyer_concentration_ratio'] * 2.0) +
                 (df['gst_filing_delay_days_avg'] * 0.15) -
                 (df['aa_inflow_outflow_ratio'] * 1.5) -
-                (df['epfo_payment_punctuality_score'] * 1.0)
+                (df['epfo_payment_punctuality_score'] * 1.0) -
+                ((df['epfo_employee_count'] / 50.0) * 0.5)
             )
             threshold = np.percentile(risk_score, 88)
             df['is_default'] = (risk_score >= threshold).astype(int)
@@ -44,19 +45,20 @@ def train_custom_credit_engine(custom_df=None):
             'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
         }
         df = pd.DataFrame(data)
+        
+        # FIXED MATHEMATICAL EQUATION LINE BELOW
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
             (df['gst_filing_delay_days_avg'] * 0.15) -
             (df['aa_inflow_outflow_ratio'] * 1.5) -
-            (df['epfo_payment_punctuality_score'] * 1.0)
-            ((df['epfo_employee_count'] / 50.0) * 0.5)  # Subtracted to ensure more staff LOWER business risk
+            (df['epfo_payment_punctuality_score'] * 1.0) -
+            ((df['epfo_employee_count'] / 50.0) * 0.5)
         )
         threshold = np.percentile(risk_score, 88)
         df['is_default'] = (risk_score >= threshold).astype(int)
 
     X = df.drop(columns=['is_default'], errors='ignore')
-    # Filter strictly down to your 10 target schema features
     target_features = [
         'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
         'gst_monthly_turnover_inr', 'gst_buyer_concentration_ratio', 'gst_filing_delay_days_avg',
@@ -65,7 +67,6 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
-    # Train robust classifier parameters
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
         scale_pos_weight=7, random_state=42, eval_metric='logloss'
@@ -74,7 +75,6 @@ def train_custom_credit_engine(custom_df=None):
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 
-# Layman terminology translator dictionary for explainable charts
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -94,21 +94,18 @@ st.title("🏦 AI-Driven MSME Financial Health Passport")
 st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand.")
 st.markdown("---")
 
-# Split screen into interactive controls on left, health card results on right
 col_sidebar, col_card = st.columns([1, 1.2])
 
 with col_sidebar:
     st.subheader("📥 Data Sync & Model Optimization Sandbox")
     st.caption("Optionally upload custom bank sheets to optimize model training rules, or download the simulation schema.")
     
-    # Optional Bank File Ingestion Target Layer
     uploaded_bank_file = st.file_uploader(
         label="📤 Upload Bank Batch Update Data (CSV Format)",
         type=["csv"],
         help="Upload a dataset containing matching columns to overwrite baseline weights with customized telemetry."
     )
     
-    # Route logic to parse uploaded CSV structures safely and store active dataframe status
     is_using_custom_data = False
     if uploaded_bank_file is not None:
         try:
@@ -126,19 +123,16 @@ with col_sidebar:
     st.subheader("📡 Step 1: Input Business Metrics")
     st.caption("Change these values to simulate pulling real data via Account Aggregators or Tax Portals.")
     
-    # Section A
     with st.expander("💼 Bank Account Framework (Account Aggregator)", expanded=True):
         input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, value=145000, step=5000)
         input_ratio = st.slider("Money Inflow vs Outflow Ratio (Target above 1.0x)", 0.5, 2.0, 1.20, 0.05)
         input_bounces = st.number_input("Cheque Bounces due to low funds (Last 3 Months)", min_value=0, max_value=12, value=0)
         
-    # Section B
     with st.expander("📜 Tax & Sales Records (GST Portal)", expanded=True):
         input_turnover = st.number_input("Average Monthly Sales/Turnover (INR)", min_value=0, value=520000, step=10000)
         input_conc = st.slider("Dependency Risk (High means depending on 1 buyer)", 0.0, 1.0, 0.20, 0.05)
         input_delay = st.number_input("Average Tax Filing Delay (Days)", min_value=0, max_value=30, value=1)
         
-    # Section C
     with st.expander("📱 Everyday Digital Operations (UPI & Employee Data)", expanded=True):
         input_upi_vol = st.number_input("Total UPI/QR Code Sales Transactions per Month", min_value=0, value=650)
         input_upi_size = st.number_input("Average Bill Amount per Customer (INR)", min_value=10, value=420)
@@ -175,7 +169,6 @@ with col_sidebar:
         use_container_width=True
     )
 
-# Package single real-time payload tracking dataframe row
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance),
     'aa_inflow_outflow_ratio': float(input_ratio),
@@ -192,11 +185,9 @@ profile_payload = pd.DataFrame([{
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
 with col_card:
-    # REFACTORED BANK TABLE RENDERING VIEWER
     if is_using_custom_data:
         st.subheader("📋 Active Uploaded Bank Registry Database")
         st.caption("Below is the custom dataset provided by the user. The AI models have been updated on this specific format.")
-        # Renders the uploaded bank sheet data columns directly to match the spreadsheet format
         st.dataframe(active_dataset, use_container_width=True, height=220)
     else:
         st.subheader("💡 Active Registry Status")
@@ -205,16 +196,13 @@ with col_card:
     st.markdown("---")
     st.subheader("📊 Step 2: Live Credit Card Passport Results")
     
-    # Process predictions against the active calibrated model instance
     prob_output = model.predict_proba(profile_payload)
     default_probability = float(prob_output[0][1])
-    non_default_probability = float(prob_output[0][0])
+    non_default_probability = 1.0 - default_probability
     
-    # Assign health_score mapped to traditional financial standard system ranges (300 to 900)
     health_score = int(300 + (non_default_probability * 600))
     risk_level_pct = default_probability * 100
     
-    # Assign system assessment statuses based on score thresholds
     if health_score >= 750:
         badge_status = "SYSTEM ASSESSMENT TIER STATUS: EXCELLENT FINANCIAL HEALTH"
         st.success(f"🟢 {badge_status}")
@@ -225,37 +213,29 @@ with col_card:
         badge_status = "SYSTEM ASSESSMENT TIER STATUS: HIGH RISK VULNERABILITY"
         st.error(f"🔴 {badge_status}")
         
-    # Visual grid layouts for stats matching your original UI
     col_stat1, col_stat2 = st.columns(2)
     with col_stat1:
         st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
     with col_stat2:
         st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
         
-    # Linear graphical progress slider
     st.progress((health_score - 300) / 600)
     
     st.markdown("---")
     st.subheader("⚙️ Why is my score this number? (Plain English Insights)")
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
-    # Compute underlying SHAP explanation layers
     shap_values = explainer(profile_payload)
-    
-    # Invert SHAP values so positive values represent positive score contributors
     raw_impacts = shap_values.values[0] * -1
     
-    # Format data array matrices
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
         'Impact': raw_impacts
     })
     
-    # Sort impacts for cleaner charting
     chart_dataframe = chart_dataframe.sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
-    # Generate clean horizontal explanation graphs
     fig, ax = plt.subplots(figsize=(6, 3.5))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
@@ -265,7 +245,6 @@ with col_card:
     
     st.markdown("---")
     
-    # Dynamic columns showing bullet points of helping/hurting factors
     col_help, col_hurt = st.columns(2)
     with col_help:
         st.markdown("#### ☀️ Factors Helping Your Score")
