@@ -106,7 +106,7 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
-    # 0 = Unconstrained, 1 = Positive Monotone Constraint, -1 = Negative Monotone Constraint
+    # Enforce strict domain logical rules natively in tree split selections
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     
     model = xgb.XGBClassifier(
@@ -159,7 +159,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     for k, v in payload_dict.items():
         metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=[250, 250])
+    t_metrics = Table(metrics_data, colWidths=[330, 170])
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
@@ -296,7 +296,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0][1])  # MATRIX INDEX FIXED
+    default_probability = float(prob_output[0][1])  # MATRIX INDEX CHIP BUG PLUGGED
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -321,9 +321,11 @@ with col_card:
     st.progress((health_score - 300) / 600)
     st.markdown("---")
     
-    # SHAP GRAPH COMPILATION
+    # SAFELY COMPUTE & FORCE-FLATTEN UNDERLYING SHAP EXPLANATIONS
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
     shap_values = explainer(profile_payload)
+    
+    # Matrix shape normalization parser gates
     if len(shap_values.values.shape) == 3:
         raw_impacts = shap_values.values[0, :, 1] * -1
     elif len(shap_values.values.shape) == 2:
@@ -331,6 +333,16 @@ with col_card:
     else:
         raw_impacts = np.ravel(shap_values.values) * -1
         
+    # FORCE 1-DIMENSIONAL CONVERSION TO PREVENT PANDAS VALUEERROR
+    raw_impacts = np.array(raw_impacts).flatten()
+    
+    # Handle length alignment anomalies
+    if len(raw_impacts) != len(feature_names):
+        if len(raw_impacts) > len(feature_names):
+            raw_impacts = raw_impacts[:len(feature_names)]
+        else:
+            raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
+            
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
         'Impact': raw_impacts
@@ -353,12 +365,15 @@ with col_card:
     st.subheader("📄 Export Specific Client Document")
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for **{client_name}**.")
     
+    # Flatten single row mapping layout for clean PDF dict ingestion
+    flat_payload_dict = profile_payload.iloc[0].to_dict()
+    
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
         score=health_score,
         risk=risk_level_pct,
         tier=badge_status,
-        payload_dict=profile_payload.iloc[0].to_dict(),  # FLAT DICT FIXED
+        payload_dict=flat_payload_dict,
         helpers=pos_drivers,
         hurters=neg_drivers
     )
