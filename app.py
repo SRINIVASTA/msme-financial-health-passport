@@ -10,21 +10,20 @@ from sklearn.model_selection import train_test_split
 st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layout="wide")
 
 # =====================================================================
-# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE ENGINE)
+# 1. CORE BACKEND DATA & MACHINE LEARNING MACHINE (ADAPTIVE CACHE)
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
     """Trains or updates model parameters using custom uploaded data or baseline defaults."""
     if custom_df is not None:
-        # Step A: Create a clean copy and drop any completely blank or missing formatting lines (Fixes 'nan' Bug)
         df = custom_df.copy()
         
-        # Step B: Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
+        # Enforce strict numeric conversions to wipe out potential parsing glitches
+        for col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        df = df.dropna()
+        
+        # Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
         if 'is_default' not in df.columns:
-            # Safe numeric conversion step to prevent evaluation calculation issues
-            for col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce')
-            df = df.dropna() # Clears out any corrupted or incomplete lines instantly
-            
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
                 (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -36,9 +35,6 @@ def train_custom_credit_engine(custom_df=None):
             threshold = np.percentile(risk_score, 88)
             df['is_default'] = (risk_score >= threshold).astype(int)
         else:
-            # If the column is already present, convert to numeric values and drop any hanging empty row endings
-            df['is_default'] = pd.to_numeric(df['is_default'], errors='coerce')
-            df = df.dropna(subset=['is_default'])
             df['is_default'] = df['is_default'].astype(int)
     else:
         # Fallback to structural synthetic generation baseline matrix parameters
@@ -75,7 +71,7 @@ def train_custom_credit_engine(custom_df=None):
         'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count', 'epfo_payment_punctuality_score'
     ]
     X = X[target_features]
-    y = df['is_default'].astype(int) # Enforces strict integer targets to prevent label inference issues
+    y = df['is_default']
     
     # Train robust classifier parameters with monotonic tracking constraints
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
@@ -88,6 +84,7 @@ def train_custom_credit_engine(custom_df=None):
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 
+# Layman terminology translator dictionary for explainable charts
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -111,7 +108,7 @@ col_sidebar, col_card = st.columns([1, 1.2])
 
 with col_sidebar:
     st.subheader("📥 Data Sync & Model Optimization Sandbox")
-    st.caption("Optionally upload custom bank sheets to optimize model training rules, or download the simulation schema.")
+    st.caption("Upload custom bank sheets to optimize model training rules, or download the current active dataset.")
     
     uploaded_bank_file = st.file_uploader(
         label="📤 Upload Bank Batch Update Data (CSV Format)",
@@ -119,6 +116,7 @@ with col_sidebar:
         help="Upload a dataset containing matching columns to overwrite baseline weights with customized telemetry."
     )
     
+    # Route logic to parse uploaded CSV structures safely and store active dataframe status
     is_using_custom_data = False
     if uploaded_bank_file is not None:
         try:
@@ -149,35 +147,27 @@ with col_sidebar:
     with st.expander("📱 Everyday Digital Operations (UPI & Employee Data)", expanded=True):
         input_upi_vol = st.number_input("Total UPI/QR Code Sales Transactions per Month", min_value=0, value=650)
         input_upi_size = st.number_input("Average Bill Amount per Customer (INR)", min_value=10, value=420)
-        input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=0, value=8)
+        input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
     st.markdown("---")
+    st.subheader("📥 Export Active Sandbox Dataset")
     
-    @st.cache_data
-    def generate_downloadable_csv():
-        np.random.seed(42)
-        n_samples = 1200
-        data = {
-            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000,
-            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples),
-            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
-            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000,
-            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
-            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples),
-            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples),
-            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples),
-            'epfo_employee_count': np.random.randint(2, 50, size=n_samples),
-            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
-        }
-        temp_df = pd.DataFrame(data)
-        return temp_df.to_csv(index=False).encode('utf-8')
+    # ADAPTIVE DOWNLOAD LOGIC PIPELINE
+    # Converts whichever dataset is currently loaded directly into the download button stream
+    csv_bytes_to_download = active_dataset.to_csv(index=False).encode('utf-8')
+    
+    if is_using_custom_data:
+        button_label = f"📥 Download Your Uploaded Bank Data ({len(active_dataset)} Rows)"
+        target_filename = "custom_bank_export_ledger.csv"
+    else:
+        button_label = "📥 Download Baseline Synthetic Database (1,200 Rows)"
+        target_filename = "msme_synthetic_credit_data.csv"
 
-    csv_bytes = generate_downloadable_csv()
     st.download_button(
-        label="📥 Download Template Schema File",
-        data=csv_bytes,
-        file_name="msme_alternate_credit_data.csv",
+        label=button_label,
+        data=csv_bytes_to_download,
+        file_name=target_filename,
         mime="text/csv",
         use_container_width=True
     )
@@ -200,7 +190,7 @@ profile_payload = pd.DataFrame([{
 with col_card:
     if is_using_custom_data:
         st.subheader("📋 Active Uploaded Bank Registry Database")
-        st.caption("Below is the custom dataset provided by the user. The AI models have been updated on this specific format.")
+        st.caption("Below is the exact dataset provided by the user. The AI models have been updated on this specific format.")
         st.dataframe(active_dataset, use_container_width=True, height=220)
     else:
         st.subheader("💡 Active Registry Status")
@@ -258,7 +248,6 @@ with col_card:
     
     st.markdown("---")
     
-    # DYNAMIC COLUMNS FIX: Adjusted filtering bounds to avoid sorting errors
     col_help, col_hurt = st.columns(2)
     with col_help:
         st.markdown("#### ☀️ Factors Helping Your Score")
