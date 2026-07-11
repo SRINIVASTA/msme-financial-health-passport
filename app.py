@@ -141,7 +141,8 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    t_score = Table(score_data, colWidths=)
+    # FIXED: Assigned explicit pixel widths for columns to pass structural validation
+    t_score = Table(score_data, colWidths=[240, 240])
     t_score.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 8)]))
     story.append(t_score)
     story.append(Spacer(1, 15))
@@ -152,7 +153,8 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         v = payload_dict.get(f, 0.0)
         metrics_data.append([Paragraph(layman_translation.get(f, f), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=)
+    # FIXED: Assigned explicit pixel widths for columns to pass structural validation
+    t_metrics = Table(metrics_data, colWidths=[240, 240])
     t_metrics.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t_metrics)
     story.append(Spacer(1, 15))
