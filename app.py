@@ -159,20 +159,99 @@ profile_payload = pd.DataFrame([{
 # =====================================================================
 # 3. MATHEMATIC PROCESSING ENGINE WITH ROBUST ARRAYS
 # =====================================================================
-# 🌟 CRITICAL FIX: Explicit matrix [0, 1] query targets probability scalar securely
-prob_default = float(model.predict_proba(profile_payload)[0, 1])
-health_score = int(300 + (1 - prob_default) * 600)
+with col_card:
+    st.subheader("📑 Step 2: Live Credit Card Passport Results")
+    
+    # Calculate raw default probability
+    # model.predict_proba returns [prob_non_default, prob_default]
+    prob_array = model.predict_proba(profile_payload)[0]
+    default_prob = prob_array[1]
+    non_default_prob = prob_array[0]
+    
+    # Scale non-default probability cleanly into the traditional financial range (300 to 900)
+    computed_passport_score = int(300 + (non_default_prob * 600))
+    
+    # Apply baseline styling indicators based on risk categories
+    if computed_passport_score >= 750:
+        badge_status = "🟢 SYSTEM ASSESSMENT TIER STATUS: EXCELLENT FINANCIAL HEALTH"
+    elif computed_passport_score >= 650:
+        badge_status = "🟡 SYSTEM ASSESSMENT TIER STATUS: MODERATE FINANCIAL RISK"
+    else:
+        badge_status = "🔴 SYSTEM ASSESSMENT TIER STATUS: HIGH RISK VULNERABILITY"
+        
+    # Visual presentation layout parameters matching your screenshot
+    st.write(f"### Your Financial Health Score: **{computed_passport_score} / 900**")
+    st.write(f"Estimated Risk Level: **{default_prob * 100:.2f}%**")
+    
+    if computed_passport_score >= 750:
+        st.success(badge_status)
+    elif computed_passport_score >= 650:
+        st.warning(badge_status)
+    else:
+        st.error(badge_status)
+        
+    st.progress((computed_passport_score - 300) / 600)
+    
+    st.markdown("---")
+    st.subheader("⚙️ Why is my score this number? (Plain English Insights)")
+    st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
+    
+    # Compute underlying SHAP explanation layers
+    shap_values = explainer(profile_payload)
+    
+    # INVERSION FIX: Multiply SHAP values by -1 because we are predicting 
+    # financial health (non-default) rather than default probability risk.
+    raw_impacts = shap_values.values[0] * -1
+    
+    # Format and translate tracking labels
+    chart_dataframe = pd.DataFrame({
+        'Feature': [layman_translation[f] for f in feature_names],
+        'Impact': raw_impacts
+    })
+    
+    # Sort attributes to reveal dominant indicators
+    chart_dataframe = chart_dataframe.sort_values(by='Impact', ascending=True)
+    
+    # Dynamic coloration mapping: Positive impacts are green (help), negative are red (hurt)
+    chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
+    
+    # Generate clean matplotlib horizontal bar graph
+    fig, ax = plt.subplots(figsize=(6, 3.5))
+    ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
+    ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
+    ax.set_xlabel('Impact Contribution Weight Score')
+    plt.tight_layout()
+    st.pyplot(fig)
+    
+    st.markdown("---")
+    
+    # Split the sorted factors into helping vs hurting columns for your UI checkmarks
+    col_help, col_hurt = st.columns(2)
+    
+    with col_help:
+        st.markdown("### ☀️ Factors Helping Your Score")
+        positive_factors = chart_dataframe[chart_dataframe['Impact'] > 0]
+        if not positive_factors.empty:
+            for _, row in positive_factors.iterrows():
+                st.success(f"✅ {row['Feature']}")
+        else:
+            st.caption("No positive metric adjustments recorded.")
+            
+    with col_hurt:
+        st.markdown("### ⚠️ Factors Hurting Your Score")
+        negative_factors = chart_dataframe[chart_dataframe['Impact'] < 0]
+        if not negative_factors.empty:
+            for _, row in negative_factors.iterrows():
+                st.error(f"❌ {row['Feature']}")
+        else:
+            st.caption("No critical risk points dragging down score.")
 
-# Determine final status conditions
-if health_score >= 750:
-    tier, color, alert_box = "EXCELLENT FINANCIAL HEALTH", "#2ecc71", st.success
-    nudge = "Business profile is in perfect standing. Ready for instant, pre-approved loan disbursement with zero paperwork via ULI network protocols."
-elif health_score >= 650:
-    tier, color, alert_box = "GOOD STANDING", "#f1c40f", st.warning
-    nudge = "Business profile is stable. Approved under standard interest configurations. Micro-advances can be extended immediately through OCEN lending networks."
-else:
-    tier, color, alert_box = "HIGH RISK (NEEDS INVESTIGATION)", "#e74c3c", st.error
-    nudge = "Business profile shows signs of financial stress. To raise this score, focus on eliminating fund-based cheque bounces and filing taxes on time for the next 60 days."
+    st.markdown("---")
+    st.subheader("💡 Automated Next Steps for the Business")
+    if computed_passport_score >= 750:
+        st.info("Business profile is in perfect standing. Ready for instant, pre-approved loan disbursement with zero paperwork via ULI network protocols.")
+    else:
+        st.warning("Score profile requires optimization. We recommend increasing average bank balances and reducing tax filing delays before applying through OCEN aggregators.")
 
 # =====================================================================
 # 4. RENDER FINANCIAL HEALTH CARD VIEW PANEL (RIGHT SIDE)
