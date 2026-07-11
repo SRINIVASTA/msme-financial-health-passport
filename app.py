@@ -16,7 +16,6 @@ def train_custom_credit_engine(custom_df=None):
     """Trains or updates model parameters using custom uploaded data or baseline defaults."""
     if custom_df is not None:
         df = custom_df.copy()
-        # Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
         if 'is_default' not in df.columns:
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
@@ -29,7 +28,6 @@ def train_custom_credit_engine(custom_df=None):
             threshold = np.percentile(risk_score, 88)
             df['is_default'] = (risk_score >= threshold).astype(int)
     else:
-        # Fallback to structural synthetic generation baseline matrix parameters
         np.random.seed(42)
         n_samples = 1200
         data = {
@@ -46,7 +44,6 @@ def train_custom_credit_engine(custom_df=None):
         }
         df = pd.DataFrame(data)
         
-        # PRESERVED ORIGINAL MATHEMATICAL FORMULA
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -67,9 +64,14 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
+    # MONOTONIC FIX: Forces XGBoost to respect the directional logic of each feature
+    # 1 means higher value increases risk, -1 means higher value decreases risk, 0 means neutral
+    constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
+    
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
-        scale_pos_weight=7, random_state=42, eval_metric='logloss'
+        scale_pos_weight=7, random_state=42, eval_metric='logloss',
+        monotone_constraints=constraints
     )
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
