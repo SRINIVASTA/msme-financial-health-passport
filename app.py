@@ -177,7 +177,9 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")) - 1
+        row_idx = int(current_label.split("-")[1]) - 1
+
+
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
         # Flush targets out straight to synchronized sidebar parameter caches safely
