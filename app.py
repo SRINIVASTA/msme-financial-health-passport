@@ -97,7 +97,6 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
-    # 0 = Unconstrained, 1 = Positive Monotone, -1 = Negative Monotone Rule Splits
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(n_estimators=150, max_depth=5, learning_rate=0.05, monotone_constraints=constraints)
     model.fit(X, y)
@@ -128,7 +127,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    t_score = Table(score_data, colWidths=)
+    t_score = Table(score_data, colWidths=[240, 240])
     t_score.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -142,7 +141,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     for k, v in payload_dict.items():
         metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=)
+    t_metrics = Table(metrics_data, colWidths=[240, 240])
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
@@ -169,7 +168,7 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")) - 1 # EXPLICIT STRIP ACCESS LAYER FIXED
+        row_idx = int(current_label.split("-")[1]) - 1 # COORDINATE FIX: Targets numerical index cleanly
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
         # Flush targets out straight to synchronized sidebar parameter caches safely
@@ -250,7 +249,7 @@ with col_sidebar:
         on_change=sync_inputs_to_selected_row
     )
     
-    selected_row_index = int(selected_msme_label.split("-")) - 1
+    selected_row_index = int(selected_msme_label.split("-")[1]) - 1 # COORDINATE EXTRACTION FIXED
     extracted_row_data = active_df.iloc[selected_row_index]
     
     # Synchronize sliders memory blocks if tracks are empty
@@ -329,7 +328,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output)  # SCALAR EXTRACTION FIXED
+    default_probability = float(prob_output[0, 1])  # MATRIX ELEMENT COORDINATE FIXED AS SCALAR
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -409,7 +408,7 @@ with col_card:
         unsafe_allow_html=True
     )
     
-    flat_payload_dict = profile_payload.iloc.to_dict() # FLATTENED MATRIX ROW MAPPING FIXED
+    flat_payload_dict = profile_payload.iloc[0].to_dict() # FLATTENED MATRIX ROW MAPPING FIXED NATIVELY
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(
