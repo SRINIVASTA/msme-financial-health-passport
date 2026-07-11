@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # =====================================================================
-# SYSTEM INITIALIZATION & GLOBAL CANVAS SETUP
+# SYSTEM INITIALIZATION & GLOBAL LAYOUT SETUP
 # =====================================================================
 st.set_page_config(
     page_title="MSME Credit Health Card Portal", 
@@ -27,6 +27,7 @@ REQUIRED_FEATURES = [
     'epfo_payment_punctuality_score'
 ]
 
+# Plain English dictionary mapping features to user-friendly terminology
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -40,10 +41,10 @@ layman_translation = {
     'epfo_payment_punctuality_score': 'Staff Salary Fund Punctuality'
 }
 # =====================================================================
-# MACHINE LEARNING ENGINE WITH ADAPTIVE UNDERWRITING CONTROLS
+# DYNAMIC IN-APP RETRAINING ENGINE WITH AUTO-LABEL SPLITTERS
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
-    """Trains or updates model parameters using custom data or baseline defaults."""
+    """Ingests data, auto-calculates 0/1 risk labels, and fits the XGBoost model."""
     if custom_df is not None:
         df = custom_df.copy()
         df.columns = [c.lower().strip() for c in df.columns]
@@ -60,16 +61,29 @@ def train_custom_credit_engine(custom_df=None):
         for col in REQUIRED_FEATURES:
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
         
+        # IN-APP TRAINING GATES: Automatically create 0 or 1 target variables if missing
         if 'is_default' not in df.columns:
-            risk_score = (
-                (df['aa_fund_insufficient_bounces_3m'] * 0.4) +
-                (df['gst_buyer_concentration_ratio'] * 2.0) +
-                (df['gst_filing_delay_days_avg'] * 0.15) -
+            # Score each row using an alternative risk-attribution formula
+            risk_heuristic = (
+                (df['aa_fund_insufficient_bounces_3m'] * 0.5) +
+                (df['gst_buyer_concentration_ratio'] * 2.5) +
+                (df['gst_filing_delay_days_avg'] * 0.20) -
                 (df['aa_inflow_outflow_ratio'] * 1.5) -
-                (df['epfo_payment_punctuality_score'] * 1.0)
+                (df['epfo_payment_punctuality_score'] * 1.2)
             )
-            df['is_default'] = (risk_score >= np.percentile(risk_score, 85) if len(df) > 5 else (risk_score >= 0)).astype(int)
+            # CRITICAL SHIFT: Force labels across the statistical median to balance classes
+            if len(df) > 1:
+                df['is_default'] = (risk_heuristic >= np.median(risk_heuristic)).astype(int)
+            else:
+                df['is_default'] = 0
+        else:
+            df['is_default'] = df['is_default'].fillna(0).astype(int)
+            
+        # Fallback guard to ensure data contrast across small uploads
+        if len(df) > 1 and df['is_default'].nunique() == 1:
+            df.iloc[0, df.columns.get_loc('is_default')] = 1 - df.iloc[0, df.columns.get_loc('is_default')]
     else:
+        # Standard fallback synthetic databank generation baseline
         np.random.seed(42)
         n_samples = 1200
         data = {
@@ -85,18 +99,19 @@ def train_custom_credit_engine(custom_df=None):
             'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
         }
         df = pd.DataFrame(data)
-        risk_score = (
-            (df['aa_fund_insufficient_bounces_3m'] * 0.4) +
-            (df['gst_buyer_concentration_ratio'] * 2.0) +
-            (df['gst_filing_delay_days_avg'] * 0.15) -
+        risk_heuristic = (
+            (df['aa_fund_insufficient_bounces_3m'] * 0.5) +
+            (df['gst_buyer_concentration_ratio'] * 2.5) +
+            (df['gst_filing_delay_days_avg'] * 0.20) -
             (df['aa_inflow_outflow_ratio'] * 1.5) -
-            (df['epfo_payment_punctuality_score'] * 1.0)
+            (df['epfo_payment_punctuality_score'] * 1.2)
         )
-        df['is_default'] = (risk_score >= np.percentile(risk_score, 85)).astype(int)
+        df['is_default'] = (risk_heuristic >= np.percentile(risk_heuristic, 85)).astype(int)
 
     X = df[REQUIRED_FEATURES]
     y = df['is_default']
     
+    # Enforce domain risk constraints on split choices natively
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, monotone_constraints=constraints)
     model.fit(X, y)
@@ -126,7 +141,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    t_score = Table(score_data, colWidths=[240, 240])
+    t_score = Table(score_data, colWidths=)
     t_score.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 8)]))
     story.append(t_score)
     story.append(Spacer(1, 15))
@@ -137,7 +152,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         v = payload_dict.get(f, 0.0)
         metrics_data.append([Paragraph(layman_translation.get(f, f), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=[240, 240])
+    t_metrics = Table(metrics_data, colWidths=)
     t_metrics.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('PADDING', (0,0), (-1,-1), 5)]))
     story.append(t_metrics)
     story.append(Spacer(1, 15))
@@ -160,7 +175,7 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")[1]) - 1 # SAFE SLICE FIXED
+        row_idx = int(current_label.split("-")) - 1
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
         # Flush targets out straight to synchronized sidebar parameter caches safely
@@ -208,7 +223,7 @@ with col_sidebar:
                     
                     for k in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]:
                         if k in st.session_state: del st.session_state[k]
-                    st.toast("🎯 Custom Sheet Connected & Core Models Locked Safely!", icon="✅")
+                    st.toast("🎯 Custom Sheet Ingested & Models Saved!", icon="✅")
                 except Exception as e:
                     st.error(f"Processing Error in Custom Format: {str(e)}")
                     
@@ -227,14 +242,13 @@ with col_sidebar:
             st.session_state["active_explainer"] = e_obj
             st.session_state["active_features"] = f_list
             st.session_state["active_dataset"] = d_matrix
-            st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     active_df = st.session_state["active_dataset"]
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(len(active_df))]
     
     selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row)
-    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
+    selected_row_index = int(selected_msme_label.split("-")) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
     # Synchronize sliders memory blocks if tracks are empty
@@ -274,7 +288,7 @@ with col_sidebar:
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# 🔄 BIND ML INFERENCE INPUTS STRICTLY TO REAL-TIME SIDEBAR METRIC VALS (ALLOWS UN-SYNCHED OVERRIDES)
+# THE OMNI-REACTIVE PAYLOAD COUPLING ENGINE: Forces the input vector matrix to bind cleanly with active sliders
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(input_balance), 'aa_inflow_outflow_ratio': float(input_ratio), 'aa_fund_insufficient_bounces_3m': int(input_bounces),
     'gst_monthly_turnover_inr': float(input_turnover), 'gst_buyer_concentration_ratio': float(input_conc), 'gst_filing_delay_days_avg': int(input_delay),
@@ -300,8 +314,8 @@ with col_card:
     
     prob_output = model.predict_proba(profile_payload)
     
-    # 🎯 TARGETS MATRIX SCALAR EXPLICITLY: UNLOCKS MOVEMENT DYNAMICS FOR RE-TRAINED CSV SHEETS
-    default_probability = float(prob_output[0, 1])  
+    # 🎯 TARGETS SCALAR COORDINATE EXPLICITLY TO UNLOCK SCORE CHANNELS FOR NEWLY RETRAINED MODEL
+    default_probability = float(prob_output)  
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -366,8 +380,7 @@ with col_card:
             <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
         </div>""", unsafe_allow_html=True)
     
-    # Pack parameters safely into flat record structures
-    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()}
+    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc.to_dict().items()}
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(label=f"📥 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
