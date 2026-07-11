@@ -15,8 +15,16 @@ st.set_page_config(page_title="MSME Credit Health Card", page_icon="🏦", layou
 def train_custom_credit_engine(custom_df=None):
     """Trains or updates model parameters using custom uploaded data or baseline defaults."""
     if custom_df is not None:
+        # Step A: Create a clean copy and drop any completely blank or missing formatting lines (Fixes 'nan' Bug)
         df = custom_df.copy()
+        
+        # Step B: Dynamically inject the target metric logic if the bank table lacks a supervised classification flag
         if 'is_default' not in df.columns:
+            # Safe numeric conversion step to prevent evaluation calculation issues
+            for col in df.columns:
+                df[col] = pd.to_numeric(df[col], errors='coerce')
+            df = df.dropna() # Clears out any corrupted or incomplete lines instantly
+            
             risk_score = (
                 (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
                 (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -27,7 +35,13 @@ def train_custom_credit_engine(custom_df=None):
             )
             threshold = np.percentile(risk_score, 88)
             df['is_default'] = (risk_score >= threshold).astype(int)
+        else:
+            # If the column is already present, convert to numeric values and drop any hanging empty row endings
+            df['is_default'] = pd.to_numeric(df['is_default'], errors='coerce')
+            df = df.dropna(subset=['is_default'])
+            df['is_default'] = df['is_default'].astype(int)
     else:
+        # Fallback to structural synthetic generation baseline matrix parameters
         np.random.seed(42)
         n_samples = 1200
         data = {
@@ -43,7 +57,6 @@ def train_custom_credit_engine(custom_df=None):
             'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples)
         }
         df = pd.DataFrame(data)
-        
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -62,12 +75,10 @@ def train_custom_credit_engine(custom_df=None):
         'upi_tx_volume_monthly', 'upi_ticket_size_avg_inr', 'epfo_employee_count', 'epfo_payment_punctuality_score'
     ]
     X = X[target_features]
-    y = df['is_default']
+    y = df['is_default'].astype(int) # Enforces strict integer targets to prevent label inference issues
     
-    # MONOTONIC FIX: Forces XGBoost to respect the directional logic of each feature
-    # 1 means higher value increases risk, -1 means higher value decreases risk, 0 means neutral
+    # Train robust classifier parameters with monotonic tracking constraints
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
-    
     model = xgb.XGBClassifier(
         n_estimators=150, max_depth=5, learning_rate=0.05,
         scale_pos_weight=7, random_state=42, eval_metric='logloss',
