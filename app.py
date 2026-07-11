@@ -149,7 +149,6 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, value=8)
         input_epfo_score = st.slider("Staff Provident Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, 0.95, 0.05)
 
-    # NEW DUAL-FILE SANDBOX SPLIT EXPORTER
     st.markdown("---")
     st.subheader("📊 Data Split & Export Center")
     st.caption("Download separated datasets filtered directly by your strict underwriting parameters.")
@@ -158,11 +157,9 @@ with col_sidebar:
     approved_dataframe = active_dataset[active_dataset['is_default'] == 0]
     rejected_dataframe = active_dataset[active_dataset['is_default'] == 1]
     
-    # Convert vectors into clean downloadable bytes streams
     bytes_approved = approved_dataframe.to_csv(index=False).encode('utf-8')
     bytes_rejected = rejected_dataframe.to_csv(index=False).encode('utf-8')
     
-    # Render Download Button 1 (Elite Approved Group)
     st.download_button(
         label=f"🟢 Download Approved Merchants ({len(approved_dataframe)} Rows)",
         data=bytes_approved,
@@ -170,8 +167,6 @@ with col_sidebar:
         mime="text/csv",
         use_container_width=True
     )
-    
-    # Render Download Button 2 (High-Risk Rejected Group)
     st.download_button(
         label=f"🔴 Download Rejected Merchants ({len(rejected_dataframe)} Rows)",
         data=bytes_rejected,
@@ -209,7 +204,7 @@ with col_card:
     
     prob_output = model.predict_proba(profile_payload)
     
-    # 🟢 ARRAY INDEX FIX APPLIED BELOW: Extract element indices securely from multiclass matrix
+    # Secure extraction of probability values from matrix row layout channels
     default_probability = float(prob_output[0][1])
     non_default_probability = 1.0 - default_probability
     
@@ -239,8 +234,16 @@ with col_card:
     st.caption("Our system looks behind the black box to show you exactly what is impacting your score profile direction.")
     
     shap_values = explainer(profile_payload)
-    raw_impacts = shap_values.values * -1
     
+    # 🟢 DIMENSIONAL FIX APPLIED BELOW: Adaptive shape checking to guarantee 1D array flattening
+    if len(shap_values.values.shape) == 3:
+        # Extracts Sample 0, All Features, Class 1 (Default Risk Impact)
+        raw_impacts = shap_values.values[0, :, 1] * -1
+    elif len(shap_values.values.shape) == 2:
+        raw_impacts = shap_values.values[0] * -1
+    else:
+        raw_impacts = np.ravel(shap_values.values) * -1
+        
     chart_dataframe = pd.DataFrame({
         'Feature': [layman_translation[f] for f in feature_names],
         'Impact': raw_impacts
