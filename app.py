@@ -5,7 +5,6 @@ import xgboost as xgb
 import shap
 import matplotlib.pyplot as plt
 import io
-from sklearn.model_selection import train_test_split
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -20,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Translation map for backend metric properties
+# Plain English translation map for backend metric properties
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -37,6 +36,7 @@ layman_translation = {
 # 1. ADVANCED ENGINE TRAINING PIPELINE
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
+    """Trains model parameters using custom data or baseline defaults."""
     if custom_df is not None:
         df = custom_df.copy()
         for col in df.columns:
@@ -97,16 +97,16 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
-    # 0 = Unconstrained, 1 = Positive Monotone Constraint, -1 = Negative Monotone Constraint
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(n_estimators=150, max_depth=5, learning_rate=0.05, monotone_constraints=constraints)
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 # =====================================================================
-# 2. PDF CARD REPORT GENERATION MICROSERVICE (FIXED & COMPLETE)
+# 2. PDF CARD REPORT GENERATION MICROSERVICE
 # =====================================================================
 def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters):
+    """Compiles an audit-ready financial health report buffer."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     story = []
@@ -127,8 +127,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    # FIXED: Explicit column dimensions mapped to fill the page canvas bounds cleanly
-    t_score = Table(score_data, colWidths=[270, 270])
+    t_score = Table(score_data, colWidths=[260, 260])
     t_score.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -142,8 +141,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     for k, v in payload_dict.items():
         metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
     
-    # FIXED: Explicit column dimensions mapped to handle incoming vector names
-    t_metrics = Table(metrics_data, colWidths=[270, 270])
+    t_metrics = Table(metrics_data, colWidths=[260, 260])
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
@@ -162,18 +160,18 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer.seek(0)
     return buffer.getvalue()
 # =====================================================================
-# 3. SIDEBAR LAYOUT & MEMORY RESET CORE
+# 3. INTERACTIVE SIDEBAR & INTEGRATED DATA INGESTION ENGINE
 # =====================================================================
 col_sidebar, col_card = st.columns([1, 1.2])
 
-# FIXED CALLBACK FUNCTION: Explicitly reads and writes memory snapshots with no loop blocks
 def sync_inputs_to_selected_row():
+    """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")) - 1
+        row_idx = int(current_label.split("-")[1]) - 1 # AGENTIC FIX: Safe string parsing
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
-        # Flush targets out straight to session storage values
+        # Flush targets out straight to session storage parameters
         st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
         st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
         st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
@@ -184,10 +182,10 @@ def sync_inputs_to_selected_row():
         st.session_state["sb_upi_size"] = int(row_data['upi_ticket_size_avg_inr'])
         st.session_state["sb_epfo_staff"] = int(row_data['epfo_employee_count'])
         st.session_state["sb_epfo_score"] = float(np.clip(row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
+        st.session_state["sb_client_name"] = f"Sri Venkateswara Enterprises ({current_label})"
 
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
-    
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
@@ -196,7 +194,6 @@ with col_sidebar:
     )
     
     is_using_custom_data = False
-    
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
@@ -207,11 +204,10 @@ with col_sidebar:
                 user_imported_df = pd.read_csv(uploaded_bank_file)
                 m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
                 
-                # CRITICAL RESYNC FIX: Force clear out old memory keys when a file replacement happens
                 if "last_loaded_file" not in st.session_state or st.session_state["last_loaded_file"] != uploaded_bank_file.name:
-                    for k in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score"]:
-                        if k in st.session_state:
-                            del st.session_state[k]
+                    for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]:
+                        if cache_key in st.session_state:
+                            del st.session_state[cache_key]
                     st.session_state["last_loaded_file"] = uploaded_bank_file.name
                 
                 st.session_state["active_model"] = m_obj
@@ -220,7 +216,7 @@ with col_sidebar:
                 st.session_state["active_dataset"] = d_matrix
                 is_using_custom_data = True
             except Exception as e:
-                st.error(f"Processing Error in Sheet: {str(e)}")
+                st.error(f"Processing Error in Custom Sheet: {str(e)}")
 
     if "active_dataset" not in st.session_state or data_source_mode == "Live Ecosystem APIs (ULI / OCEN / AA Simulation)":
         if not is_using_custom_data:
@@ -258,8 +254,9 @@ with col_sidebar:
         st.session_state["sb_upi_size"] = int(extracted_row_data['upi_ticket_size_avg_inr'])
         st.session_state["sb_epfo_staff"] = int(extracted_row_data['epfo_employee_count'])
         st.session_state["sb_epfo_score"] = float(np.clip(extracted_row_data['epfo_payment_punctuality_score'], 0.0, 1.0))
+        st.session_state["sb_client_name"] = f"Sri Venkateswara Enterprises ({selected_msme_label})"
 
-    client_name = st.text_input("Assign Corporate Display Name", value=f"Sri Venkateswara Enterprises ({selected_msme_label})")
+    client_name = st.text_input("Assign Corporate Display Name", key="sb_client_name")
     
     with st.expander("💼 Ingested Account Aggregator Records", expanded=True):
         input_balance = st.number_input("Average Daily Balance kept in Bank (INR)", min_value=0, key="sb_balance", step=5000)
@@ -320,7 +317,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # Targets row 0, column 1
+    default_probability = float(prob_output[0, 1])  # AGENTIC FIX: Thread-safe row 0 column 1 extraction
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -369,14 +366,16 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
+    # Thread-Safe graph generation block
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
     ax.set_xlabel('Impact Weight Score')
     plt.tight_layout()
     st.pyplot(fig)
+    plt.close(fig)  # Free up system memory assets instantly
     
-    # DYNAMIC TRACKER EXTRACTOR (Guarantees data output)
+    # DYNAMIC DRIVER EXTRACTION Engine
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -398,14 +397,14 @@ with col_card:
         unsafe_allow_html=True
     )
     
+    # AGENTIC FIX: Safe flat dictionary parsing method out of first index row layout Series
     flat_payload_dict = profile_payload.iloc[0].to_dict()
-
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(
         label=f"📥 Download Customized PDF Passport for {client_name}",
         data=client_pdf_bytes,
-        file_name=f"credit_passport_{client_name.lower().replace(' ', '_')}.pdf",
+        file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf",
         mime="application/pdf",
         use_container_width=True
     )
