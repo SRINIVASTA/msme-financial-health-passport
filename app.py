@@ -46,7 +46,7 @@ def train_custom_credit_engine(custom_df=None):
         }
         df = pd.DataFrame(data)
         
-        # FIXED MATHEMATICAL EQUATION LINE BELOW
+        # PRESERVED ORIGINAL MATHEMATICAL FORMULA
         risk_score = (
             (df['aa_fund_insufficient_bounces_3m'] * 0.4) + 
             (df['gst_buyer_concentration_ratio'] * 2.0) +
@@ -245,19 +245,20 @@ with col_card:
     
     st.markdown("---")
     
+    # DYNAMIC COLUMNS FIX: Adjusted filtering bounds to avoid sorting errors
     col_help, col_hurt = st.columns(2)
     with col_help:
         st.markdown("#### ☀️ Factors Helping Your Score")
-        positive_factors = chart_dataframe[chart_dataframe['Impact'] >= 0]
+        positive_factors = chart_dataframe[chart_dataframe['Impact'] > 0.005]
         if not positive_factors.empty:
             for _, row in positive_factors.iterrows():
                 st.markdown(f"✅ {row['Feature']}")
         else:
-            st.caption("No positive metric drivers tracking currently.")
+            st.caption("No strong positive metric drivers tracking currently.")
             
     with col_hurt:
         st.markdown("#### ⚠️ Factors Hurting Your Score")
-        negative_factors = chart_dataframe[chart_dataframe['Impact'] < 0]
+        negative_factors = chart_dataframe[chart_dataframe['Impact'] < -0.005]
         if not negative_factors.empty:
             for _, row in negative_factors.iterrows():
                 st.markdown(f"❌ {row['Feature']}")
