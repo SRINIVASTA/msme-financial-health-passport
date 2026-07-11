@@ -360,7 +360,7 @@ with col_card:
     pos_drivers = chart_dataframe[chart_dataframe['Impact'] > 0.005]['Feature'].tolist()
     neg_drivers = chart_dataframe[chart_dataframe['Impact'] < -0.005]['Feature'].tolist()
     
-    st.markdown("---")
+        st.markdown("---")
     # =====================================================================
     # TRACK REQUIREMENT SOLUTION: SPECIFIC CLIENT CREDIT EXPORT PORTAL
     # =====================================================================
@@ -372,14 +372,13 @@ with col_card:
             <span style="color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
             <span style="color: #212F3D;">Generates an instant, consent-backed, multidimensional Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
         </div>""", 
-        unsafe_allow_allowed_html=True, # Allows the custom HTML layout to render safely
-        unsafe_allow_html=True
+        unsafe_allow_html=True  # FIXED: Removed the accidental duplicated/misspelled parameter
     )
     
     st.caption(f"Compile and download an authenticated PDF Credit Passport customized specifically for the evaluated client: **{client_name}**.")
     
     # Flatten single row mapping layout for clean PDF dict ingestion
-    flat_payload_dict = profile_payload.iloc.to_dict()
+    flat_payload_dict = profile_payload.iloc[0].to_dict()
     
     client_pdf_bytes = generate_credit_pdf(
         client_name=client_name,
