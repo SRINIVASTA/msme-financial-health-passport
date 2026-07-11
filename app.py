@@ -398,7 +398,7 @@ with col_card:
         unsafe_allow_html=True
     )
     
-    flat_payload_dict = profile_payload.iloc.to_dict()
+    flat_payload_dict = profile_payload.iloc[0].to_dict()
 
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
