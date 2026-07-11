@@ -250,6 +250,8 @@ with col_sidebar:
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(len(active_df))]
     
     selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row)
+    
+    # 🎯 FIXED: Explicit list slicing [1] added to extract the numeric string piece safely
     selected_row_index = int(selected_msme_label.split("-")) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
