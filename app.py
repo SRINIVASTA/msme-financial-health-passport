@@ -104,7 +104,7 @@ def train_custom_credit_engine(custom_df=None):
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 # =====================================================================
-# 2. PDF CARD REPORT GENERATION MICROSERVICE
+# 2. PDF CARD REPORT GENERATION MICROSERVICE (FIXED & COMPLETE)
 # =====================================================================
 def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters):
     buffer = io.BytesIO()
@@ -127,7 +127,8 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    t_score = Table(score_data, colWidths=)
+    # FIXED: Explicit column dimensions mapped to fill the page canvas bounds cleanly
+    t_score = Table(score_data, colWidths=[270, 270])
     t_score.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -141,7 +142,8 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     for k, v in payload_dict.items():
         metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=)
+    # FIXED: Explicit column dimensions mapped to handle incoming vector names
+    t_metrics = Table(metrics_data, colWidths=[270, 270])
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
