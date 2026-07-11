@@ -11,7 +11,7 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib import colors
 
 # =====================================================================
-# SYSTEM INITIALIZATION & PAGE ARCHITECTURE
+# SYSTEM INITIALIZATION & GLOBAL LAYOUT SETUP
 # =====================================================================
 st.set_page_config(
     page_title="MSME Credit Health Card Portal", 
@@ -19,7 +19,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Plain English translation map for backend metric properties
+# Plain English dictionary mapping code features to user-friendly terminology
 layman_translation = {
     'aa_avg_daily_balance_inr': 'Average Bank Balance',
     'aa_inflow_outflow_ratio': 'Money In vs Money Out Ratio',
@@ -33,10 +33,10 @@ layman_translation = {
     'epfo_payment_punctuality_score': 'Staff Salary Fund Punctuality'
 }
 # =====================================================================
-# 1. ADVANCED ENGINE TRAINING PIPELINE
+# MACHINE LEARNING ENGINE WITH ADAPTIVE UNDERWRITING CONTROLS
 # =====================================================================
 def train_custom_credit_engine(custom_df=None):
-    """Trains model parameters using custom data or baseline defaults."""
+    """Trains or updates model parameters using custom data or baseline defaults."""
     if custom_df is not None:
         df = custom_df.copy()
         for col in df.columns:
@@ -97,16 +97,17 @@ def train_custom_credit_engine(custom_df=None):
     X = X[target_features]
     y = df['is_default']
     
+    # 0 = Unconstrained, 1 = Positive Monotone, -1 = Negative Monotone Rule Splits
     constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1)
     model = xgb.XGBClassifier(n_estimators=150, max_depth=5, learning_rate=0.05, monotone_constraints=constraints)
     model.fit(X, y)
     explainer = shap.TreeExplainer(model)
     return model, explainer, X.columns.tolist(), df
 # =====================================================================
-# 2. PDF CARD REPORT GENERATION MICROSERVICE
+# ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE
 # =====================================================================
 def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters):
-    """Compiles an audit-ready financial health report buffer."""
+    """Compiles an audit-ready financial health passport report document buffer."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     story = []
@@ -127,7 +128,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)],
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)]
     ]
-    t_score = Table(score_data, colWidths=[260, 260])
+    t_score = Table(score_data, colWidths=)
     t_score.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
@@ -141,7 +142,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     for k, v in payload_dict.items():
         metrics_data.append([Paragraph(layman_translation.get(k, k), body_style), Paragraph(str(v), body_style)])
     
-    t_metrics = Table(metrics_data, colWidths=[260, 260])
+    t_metrics = Table(metrics_data, colWidths=)
     t_metrics.setStyle(TableStyle([
         ('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')),
         ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey),
@@ -160,10 +161,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     buffer.seek(0)
     return buffer.getvalue()
 # =====================================================================
-# 3. INTERACTIVE SIDEBAR & INTEGRATED DATA INGESTION ENGINE
-# =====================================================================
-# =====================================================================
-# BLOCK 4: SIDEBAR CONTROLS & STATE-CACHING CALLBACKS
+# SIDEBAR LAYER & PROTOCOL STATE SYNCHRONIZATION
 # =====================================================================
 col_sidebar, col_card = st.columns([1, 1.2])
 
@@ -171,10 +169,10 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item."""
     if "active_dataset" in st.session_state:
         current_label = st.session_state.active_msme_dropdown
-        row_idx = int(current_label.split("-")[1]) - 1 # EXPLICIT SAFE LIST SPLIT INDEX
+        row_idx = int(current_label.split("-")) - 1 # EXPLICIT STRIP ACCESS LAYER FIXED
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
-        # Flush targets out straight to synchronized sidebar parameter caches
+        # Flush targets out straight to synchronized sidebar parameter caches safely
         st.session_state["sb_balance"] = int(row_data['aa_avg_daily_balance_inr'])
         st.session_state["sb_ratio"] = float(np.clip(row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
         st.session_state["sb_bounces"] = int(row_data['aa_fund_insufficient_bounces_3m'])
@@ -189,7 +187,6 @@ def sync_inputs_to_selected_row():
 
 with col_sidebar:
     st.subheader("🌐 Data Ingestion Protocol Selection")
-    
     data_source_mode = st.radio(
         label="Select Input Ingestion Channel:",
         options=["Live Ecosystem APIs (ULI / OCEN / AA Simulation)", "Batch Document Upload (CSV Sandbox)"],
@@ -197,45 +194,36 @@ with col_sidebar:
         key="data_source_mode_radio"
     )
     
-    # MASTER INGESTION CONTROLLER GATES
+    is_using_custom_data = False
     if data_source_mode == "Batch Document Upload (CSV Sandbox)":
         st.markdown("---")
         st.subheader("📊 Model Optimization Sandbox")
         uploaded_bank_file = st.file_uploader(label="📁 Upload Bank Batch Update Data (CSV Format)", type=["csv"], key="csv_file_uploader_widget")
         
         if uploaded_bank_file is not None:
-            # INVARIANT TOKEN VALIDATION: Only parse and train if it is a brand new file payload
+            # INVARIANT TOKEN CHECKPOINT: Wipes manual tracks exactly once when file updates
             if "last_loaded_file" not in st.session_state or st.session_state["last_loaded_file"] != uploaded_bank_file.name:
                 try:
                     user_imported_df = pd.read_csv(uploaded_bank_file)
                     m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(user_imported_df)
                     
-                    # Clear out stale manual caches from previous dataset sessions
+                    # Flush old cached sliders from state storage safely
                     for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
                         if cache_key in st.session_state:
                             del st.session_state[cache_key]
                             
-                    # Secure custom data states inside global memory storage vault
                     st.session_state["active_model"] = m_obj
                     st.session_state["active_explainer"] = e_obj
                     st.session_state["active_features"] = f_list
                     st.session_state["active_dataset"] = d_matrix
                     st.session_state["last_loaded_file"] = uploaded_bank_file.name
-                    st.toast("🎯 Custom Portfolio Ingested & Model Retrained Successfully!", icon="✅")
+                    st.toast("🎯 Custom Portfolio Ingested Successfully!", icon="✅")
                 except Exception as e:
-                    st.error(f"Processing Error in Sheet Format: {str(e)}")
-                    
-            # Track context state if file is removed mid-session
-            elif "active_dataset" not in st.session_state:
-                m_obj, e_obj, f_list, d_matrix = train_custom_credit_engine(None)
-                st.session_state["active_model"] = m_obj
-                st.session_state["active_explainer"] = e_obj
-                st.session_state["active_features"] = f_list
-                st.session_state["active_dataset"] = d_matrix
-    
-    # Reset back to synthetic data baseline channels if Live APIs are targeted
+                    st.error(f"Processing Error in Custom Format: {str(e)}")
+            is_using_custom_data = True
+            
+    # Reset context parameters if Live APIs options are toggled
     else:
-        # Force clear out file token tracking history to allow clean subsequent re-uploads
         if "last_loaded_file" in st.session_state:
             del st.session_state["last_loaded_file"]
             for cache_key in ["sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name"]:
@@ -248,11 +236,9 @@ with col_sidebar:
         st.session_state["active_features"] = f_list
         st.session_state["active_dataset"] = d_matrix
         st.caption("🟢 **Real-time API Ingestion Active**: Connected via Unified Lending Interface (ULI) protocols.")
-
     st.markdown("---")
     st.subheader("👤 Step 1: Select Active Row & Fine-Tune Parameters")
     
-    # Read variables strictly from the state-locked active data storage arrays
     active_df = st.session_state["active_dataset"]
     total_available_rows = len(active_df)
     msme_options = [f"MSME-{str(i+1).zfill(4)}" for i in range(total_available_rows)]
@@ -264,10 +250,10 @@ with col_sidebar:
         on_change=sync_inputs_to_selected_row
     )
     
-    selected_row_index = int(selected_msme_label.split("-")[1]) - 1
+    selected_row_index = int(selected_msme_label.split("-")) - 1
     extracted_row_data = active_df.iloc[selected_row_index]
     
-    # Lock initial values safely if memory track keys are un-initialized
+    # Synchronize sliders memory blocks if tracks are empty
     if "sb_balance" not in st.session_state:
         st.session_state["sb_balance"] = int(extracted_row_data['aa_avg_daily_balance_inr'])
         st.session_state["sb_ratio"] = float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0))
@@ -307,7 +293,7 @@ with col_sidebar:
     st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
     st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
-# COUPLED PAYLOAD GENERATOR: Ingests properties strictly from state-synchronized sidebar memory slots
+# COUPLED PAYLOAD ENGINE FIXED: Evaluates predictions out of state-locked variables exclusively
 profile_payload = pd.DataFrame([{
     'aa_avg_daily_balance_inr': float(st.session_state["sb_balance"]),
     'aa_inflow_outflow_ratio': float(st.session_state["sb_ratio"]),
@@ -319,11 +305,9 @@ profile_payload = pd.DataFrame([{
     'upi_ticket_size_avg_inr': float(st.session_state["sb_upi_size"]),
     'epfo_employee_count': int(st.session_state["sb_epfo_staff"]),
     'epfo_payment_punctuality_score': float(st.session_state["sb_epfo_score"])
-    }])
-    
-### Updated Block 5: Dashboard Output Grid & State-Synchronized Evaluation
+}])
 # =====================================================================
-# BLOCK 5: MAIN DASHBOARD CARD & DYNAMIC REPORTING OUTPUTS
+# MAIN DISPLAY CARD INTERFACE & EXPECTED OUTCOMES
 # =====================================================================
 model = st.session_state["active_model"]
 explainer = st.session_state["active_explainer"]
@@ -345,7 +329,7 @@ with col_card:
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
     
     prob_output = model.predict_proba(profile_payload)
-    default_probability = float(prob_output[0, 1])  # FIXED ARRAY EXTRACTOR
+    default_probability = float(prob_output)  # SCALAR EXTRACTION FIXED
     non_default_probability = 1.0 - default_probability
     
     health_score = int(300 + (non_default_probability * 600))
@@ -394,15 +378,16 @@ with col_card:
     }).sort_values(by='Impact', ascending=True)
     chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
     
+    # Thread-safe canvas instantiation block
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
     ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
     ax.set_xlabel('Impact Weight Score')
     plt.tight_layout()
     st.pyplot(fig)
-    plt.close(fig)  # Safely close figure to release backend memory
+    plt.close(fig) # Instantly drops chart memory object allocation arrays
     
-    # DYNAMIC TRACKER EXTRACTOR ENGINE
+    # DYNAMIC TRACKER EXTRACTOR (Guarantees sorted driver names)
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
     pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
@@ -424,7 +409,7 @@ with col_card:
         unsafe_allow_html=True
     )
     
-    flat_payload_dict = profile_payload.iloc[0].to_dict() # ROW 0 EXPLICT EXTRACTOR FIXED
+    flat_payload_dict = profile_payload.iloc.to_dict() # FLATTENED MATRIX ROW MAPPING FIXED
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(
