@@ -372,10 +372,10 @@ with col_card:
     plt.close(fig)  
     
     active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
-    pos_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
+    pos_subset = active_drivers[active_drivers['Impact'] < 0].sort_values(by='Impact', ascending=True)
     pos_drivers = pos_subset['Feature'].head(2).tolist()
     
-    neg_subset = active_drivers[active_drivers['Impact'] < 0].sort_values(by='Impact', ascending=True)
+    neg_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
     neg_drivers = neg_subset['Feature'].head(2).tolist()
     
     if not pos_drivers and not neg_drivers:
