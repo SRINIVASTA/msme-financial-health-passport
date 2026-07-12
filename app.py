@@ -403,6 +403,13 @@ if not neg_drivers:
     neg_drivers = ["None (Perfect Structural Integrity)"]
     
     st.markdown("---")
+    st.subheader("📥 Master Data Export Controls")
+    approved_dataframe = active_df[active_df['is_default'] == 0]
+    rejected_dataframe = active_df[active_df['is_default'] == 1]
+    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+
+    st.markdown("---")
     st.subheader("📄 Export Specific Client Document")
     st.markdown(f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
             <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
@@ -414,9 +421,3 @@ if not neg_drivers:
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(label=f"📥 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
-    st.markdown("---")
-    st.subheader("📥 Master Data Export Controls")
-    approved_dataframe = active_df[active_df['is_default'] == 0]
-    rejected_dataframe = active_df[active_df['is_default'] == 1]
-    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
-    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
