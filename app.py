@@ -288,12 +288,6 @@ with col_sidebar:
         input_epfo_staff = st.number_input("Active Registered Staff Count", min_value=1, key="sb_epfo_staff")
         input_epfo_score = st.slider("Staff Fund Payment Timeliness (1.0 = Perfect)", 0.0, 1.0, key="sb_epfo_score", step=0.05)
 
-    st.markdown("---")
-    st.subheader("📥 Master Data Export Controls")
-    approved_dataframe = active_df[active_df['is_default'] == 0]
-    rejected_dataframe = active_df[active_df['is_default'] == 1]
-    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
-    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
 # THE OMNI-REACTIVE PAYLOAD COUPLING ENGINE: Forces the input vector matrix to bind cleanly with active sliders
 profile_payload = pd.DataFrame([{
@@ -420,3 +414,9 @@ if not neg_drivers:
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
     
     st.download_button(label=f"📥 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
+    st.markdown("---")
+    st.subheader("📥 Master Data Export Controls")
+    approved_dataframe = active_df[active_df['is_default'] == 0]
+    rejected_dataframe = active_df[active_df['is_default'] == 1]
+    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
