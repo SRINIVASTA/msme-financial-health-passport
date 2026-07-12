@@ -393,8 +393,6 @@ with col_card:
 # =====================================================================
 # 🛑 REMOVE INDENTATION HERE FOR FULL-WIDTH GLOBAL FOOTER PANELS
 # =====================================================================
-# st.markdown("---")
-# st.subheader("📥 Master Data Export Controls")
 st.markdown("---")
 with col_card:
     st.subheader(" 📥 Master Data Export Controls")
@@ -404,11 +402,6 @@ with col_card:
     st.download_button(label=f"  Download Rejected Portfolio ({len (rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
 
-# approved_dataframe = active_df[active_df['is_default'] == 0]
-# rejected_dataframe = active_df[active_df['is_default'] == 1]
-
-# st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
-# st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
 
 st.markdown("---")
 with col_card:
