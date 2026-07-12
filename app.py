@@ -348,39 +348,65 @@ with col_card:
     st.markdown("---")
     
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
-    shap_values = explainer(profile_payload)
-    
-    if len(shap_values.values.shape) == 3: raw_impacts = shap_values.values[0, :, 1] * -1
-    elif len(shap_values.values.shape) == 2: raw_impacts = shap_values.values[0, :] * -1
-    else: raw_impacts = np.ravel(shap_values.values) * -1
-        
-    raw_impacts = np.array(raw_impacts).flatten()
-    
-    if len(raw_impacts) != len(feature_names):
-        if len(raw_impacts) > len(feature_names): raw_impacts = raw_impacts[:len(feature_names)]
-        else: raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
-            
-    chart_dataframe = pd.DataFrame({'Feature': [layman_translation[f] for f in feature_names], 'Impact': raw_impacts}).sort_values(by='Impact', ascending=True)
-    chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#2ecc71', '#e74c3c')
-    
-    fig, ax = plt.subplots(figsize=(6, 3))
-    ax.barh(chart_dataframe['Feature'], chart_dataframe['Impact'], color=chart_dataframe['Color'])
-    ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
-    ax.set_xlabel('Impact Weight Score')
-    plt.tight_layout()
-    st.pyplot(fig)
-    plt.close(fig)  
-    
-    active_drivers = chart_dataframe[chart_dataframe['Impact'] != 0]
-    pos_subset = active_drivers[active_drivers['Impact'] < 0].sort_values(by='Impact', ascending=True)
-    pos_drivers = pos_subset['Feature'].head(2).tolist()
-    
-    neg_subset = active_drivers[active_drivers['Impact'] > 0].sort_values(by='Impact', ascending=False)
-    neg_drivers = neg_subset['Feature'].head(2).tolist()
-    
-    if not pos_drivers and not neg_drivers:
-        pos_drivers = ["Baseline Stability Metrics"]
-        neg_drivers = ["None (Perfect Structural Integrity)"]
+# ===================================================================== 
+# ULTRA-ROBUST SHAP EXTRACTOR & DYNAMIC ROUTER
+# ===================================================================== 
+shap_values = explainer(profile_payload) 
+
+# Auto-detect array shape and extract baseline raw impacts securely
+if hasattr(shap_values, "values"):
+    shap_mat = shap_values.values
+else:
+    shap_mat = np.array(shap_values)
+
+if len(shap_mat.shape) == 3: 
+    raw_impacts = shap_mat[0, :, 1]
+elif len(shap_mat.shape) == 2: 
+    raw_impacts = shap_mat[0, :]
+else: 
+    raw_impacts = np.ravel(shap_mat)
+
+# Clean out NaN records and align flat array boundaries
+raw_impacts = np.nan_to_num(np.array(raw_impacts).flatten())
+if len(raw_impacts) > len(feature_names):
+    raw_impacts = raw_impacts[:len(feature_names)]
+elif len(raw_impacts) < len(feature_names):
+    raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
+
+# Create a clean, unsorted base dataframe
+chart_dataframe = pd.DataFrame({
+    'Feature': [layman_translation[f] for f in feature_names], 
+    'Impact': raw_impacts
+})
+
+# Dynamic Color Scheme Mapping: positive SHAP means it INCREASES default risk (Bad)
+chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#e74c3c', '#2ecc71') 
+
+# --- PLOT THE MATPLOTLIB GRAPH SECURELY ---
+fig, ax = plt.subplots(figsize=(6, 3)) 
+# Sort purely for visual presentation on the chart layout
+chart_plot_df = chart_dataframe.sort_values(by='Impact', ascending=True)
+ax.barh(chart_plot_df['Feature'], chart_plot_df['Impact'], color=chart_plot_df['Color']) 
+ax.axvline(0, color='black', linewidth=0.8, linestyle='--') 
+ax.set_xlabel('Risk Contribution Weight') 
+plt.tight_layout() 
+st.pyplot(fig) 
+plt.close(fig) 
+
+# --- ROUTE METRICS TO THE ACCURATE DISPLAY FIELDS ---
+# High/Positive SHAP value = Drives up default risk (Bad / Negative Driver)
+neg_subset = chart_dataframe[chart_dataframe['Impact'] > 0.001].sort_values(by='Impact', ascending=False)
+neg_drivers = neg_subset['Feature'].head(2).tolist()
+
+# Low/Negative SHAP value = Drives down default risk (Good / Supporting Metric)
+pos_subset = chart_dataframe[chart_dataframe['Impact'] < -0.001].sort_values(by='Impact', ascending=True)
+pos_drivers = pos_subset['Feature'].head(2).tolist()
+
+# Absolute emergency fallback overrides
+if not pos_drivers: 
+    pos_drivers = ["Baseline Stability Metrics"] 
+if not neg_drivers: 
+    neg_drivers = ["None (Perfect Structural Integrity)"]
     
     st.markdown("---")
     st.subheader("📄 Export Specific Client Document")
