@@ -304,26 +304,23 @@ feature_names = st.session_state["active_features"]
 # =====================================================================
 with col_card:
     if data_source_mode == "Batch Document Upload (CSV Sandbox)" and "last_loaded_file" in st.session_state:
-        st.subheader("📋 Active Uploaded Bank Registry Database")
+        st.subheader("📝 Active Uploaded Bank Registry Database")
         st.dataframe(st.session_state["active_dataset"], use_container_width=True, height=180)
     else:
-        st.subheader("ℹ Active Registry Status")
+        st.subheader("ℹ️ Active Registry Status")
         st.info("Running on baseline Synthetic Databank Engine (1,200 Rows). Connected via ULI architectures.")
-        
+
+    # 🟢 ALL LINES BELOW MUST HAVE 4 SPACES OF INDENTATION TO STAY IN THE COLUMN
     st.markdown("---")
     st.subheader("🎯 Step 2: Live Credit Card Passport Results")
-    
-    prob_output = model.predict_proba(profile_payload)
-    
-    # 🎯 TARGETS SCALAR COORDINATE EXPLICITLY TO UNLOCK SCORE CHANNELS FOR NEWLY RETRAINED MODEL
-    
-    default_probability = float(prob_output[0, 1])  
 
+    prob_output = model.predict_proba(profile_payload)
+    default_probability = float(prob_output[0, 1]) # Fixed index access format
     non_default_probability = 1.0 - default_probability
-    
+
     health_score = int(300 + (non_default_probability * 600))
     risk_level_pct = default_probability * 100
-    
+
     if health_score >= 750:
         badge_status = "EXCELLENT FINANCIAL HEALTH"
         st.success(f"🟢 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
@@ -333,91 +330,92 @@ with col_card:
     else:
         badge_status = "HIGH RISK VULNERABILITY"
         st.error(f"🔴 SYSTEM ASSESSMENT TIER STATUS: {badge_status}")
-        
+
     col_stat1, col_stat2 = st.columns(2)
     with col_stat1: st.metric(label="Your Financial Health Score", value=f"{health_score} / 900")
     with col_stat2: st.metric(label="Estimated Risk Level", value=f"{risk_level_pct:.2f}%")
-        
+
     st.progress((health_score - 300) / 600)
     st.markdown("---")
-    
+
+    # This header and the chart are now grouped together properly
     st.subheader("🔍 Plain English Attributions (Explainable AI)")
-# ===================================================================== 
-# ULTRA-ROBUST SHAP EXTRACTOR & DYNAMIC ROUTER
-# ===================================================================== 
-shap_values = explainer(profile_payload) 
 
-# Auto-detect array shape and extract baseline raw impacts securely
-if hasattr(shap_values, "values"):
-    shap_mat = shap_values.values
-else:
-    shap_mat = np.array(shap_values)
+    shap_values = explainer(profile_payload)
 
-if len(shap_mat.shape) == 3: 
-    raw_impacts = shap_mat[0, :, 1]
-elif len(shap_mat.shape) == 2: 
-    raw_impacts = shap_mat[0, :]
-else: 
-    raw_impacts = np.ravel(shap_mat)
+    if hasattr(shap_values, "values"):
+        shap_mat = shap_values.values
+    else:
+        shap_mat = np.array(shap_values)
 
-# Clean out NaN records and align flat array boundaries
-raw_impacts = np.nan_to_num(np.array(raw_impacts).flatten())
-if len(raw_impacts) > len(feature_names):
-    raw_impacts = raw_impacts[:len(feature_names)]
-elif len(raw_impacts) < len(feature_names):
-    raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
+    if len(shap_mat.shape) == 3:
+        raw_impacts = shap_mat[0, :, 1]
+    elif len(shap_mat.shape) == 2:
+        raw_impacts = shap_mat[0, :]
+    else:
+        raw_impacts = np.ravel(shap_mat)
 
-# Create a clean, unsorted base dataframe
-chart_dataframe = pd.DataFrame({
-    'Feature': [layman_translation[f] for f in feature_names], 
-    'Impact': raw_impacts
-})
+    raw_impacts = np.nan_to_num(np.array(raw_impacts).flatten())
+    if len(raw_impacts) > len(feature_names):
+        raw_impacts = raw_impacts[:len(feature_names)]
+    elif len(raw_impacts) < len(feature_names):
+        raw_impacts = np.pad(raw_impacts, (0, len(feature_names) - len(raw_impacts)), 'constant')
 
-# Dynamic Color Scheme Mapping: positive SHAP means it INCREASES default risk (Bad)
-chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#e74c3c', '#2ecc71') 
+    chart_dataframe = pd.DataFrame({
+        'Feature': [layman_translation[f] for f in feature_names],
+        'Impact': raw_impacts
+    })
 
-# --- PLOT THE MATPLOTLIB GRAPH SECURELY ---
-fig, ax = plt.subplots(figsize=(6, 3)) 
-# Sort purely for visual presentation on the chart layout
-chart_plot_df = chart_dataframe.sort_values(by='Impact', ascending=True)
-ax.barh(chart_plot_df['Feature'], chart_plot_df['Impact'], color=chart_plot_df['Color']) 
-ax.axvline(0, color='black', linewidth=0.8, linestyle='--') 
-ax.set_xlabel('Risk Contribution Weight') 
-plt.tight_layout() 
-st.pyplot(fig) 
-plt.close(fig) 
+    chart_dataframe['Color'] = np.where(chart_dataframe['Impact'] >= 0, '#e74c3c', '#2ecc71')
 
-# --- ROUTE METRICS TO THE ACCURATE DISPLAY FIELDS ---
-# High/Positive SHAP value = Drives up default risk (Bad / Negative Driver)
-neg_subset = chart_dataframe[chart_dataframe['Impact'] > 0.001].sort_values(by='Impact', ascending=False)
-neg_drivers = neg_subset['Feature'].head(2).tolist()
-
-# Low/Negative SHAP value = Drives down default risk (Good / Supporting Metric)
-pos_subset = chart_dataframe[chart_dataframe['Impact'] < -0.001].sort_values(by='Impact', ascending=True)
-pos_drivers = pos_subset['Feature'].head(2).tolist()
-
-# Absolute emergency fallback overrides
-if not pos_drivers: 
-    pos_drivers = ["Baseline Stability Metrics"] 
-if not neg_drivers: 
-    neg_drivers = ["None (Perfect Structural Integrity)"]
+    fig, ax = plt.subplots(figsize=(6, 4))
+    chart_plot_df = chart_dataframe.sort_values(by='Impact', ascending=True)
+    ax.barh(chart_plot_df['Feature'], chart_plot_df['Impact'], color=chart_plot_df['Color'])
+    ax.axvline(0, color='black', linewidth=0.8, linestyle='--')
+    ax.set_xlabel('Risk Contribution Weight')
+    plt.tight_layout()
     
-    st.markdown("---")
-    st.subheader("📥 Master Data Export Controls")
-    approved_dataframe = active_df[active_df['is_default'] == 0]
-    rejected_dataframe = active_df[active_df['is_default'] == 1]
-    st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
-    st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+    # Renders perfectly inside the half-column grid right under the header
+    st.pyplot(fig)
+    plt.close(fig)
 
-    st.markdown("---")
-    st.subheader("📄 Export Specific Client Document")
-    st.markdown(f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
-            <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
-            <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
-        </div>""", unsafe_allow_html=True)
-    
-    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()}
+    neg_subset = chart_dataframe[chart_dataframe['Impact'] > 0.001].sort_values(by='Impact', ascending=False)
+    neg_drivers = neg_subset['Feature'].head(2).tolist()
 
-    client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
-    
-    st.download_button(label=f"📥 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
+    pos_subset = chart_dataframe[chart_dataframe['Impact'] < -0.001].sort_values(by='Impact', ascending=True)
+    pos_drivers = pos_subset['Feature'].head(2).tolist()
+
+    if not pos_drivers:
+        pos_drivers = ["Baseline Stability Metrics"]
+    if not neg_drivers:
+        neg_drivers = ["None (Perfect Structural Integrity)"]
+
+# =====================================================================
+# 🛑 REMOVE INDENTATION HERE FOR FULL-WIDTH GLOBAL FOOTER PANELS
+# =====================================================================
+st.markdown("---")
+st.subheader("📥 Master Data Export Controls")
+
+approved_dataframe = active_df[active_df['is_default'] == 0]
+rejected_dataframe = active_df[active_df['is_default'] == 1]
+
+st.download_button(label=f"✅ Download Approved Portfolio ({len(approved_dataframe)} Rows)", data=approved_dataframe.to_csv(index=False).encode('utf-8'), file_name="approved_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+st.download_button(label=f"❌ Download Rejected Portfolio ({len(rejected_dataframe)} Rows)", data=rejected_dataframe.to_csv(index=False).encode('utf-8'), file_name="rejected_msme_credit_passport.csv", mime="text/csv", use_container_width=True)
+
+st.markdown("---")
+st.subheader("📄 Export Specific Client Document")
+st.markdown(f"""<div style="background-color: #EBF5FB; border-left: 5px solid #2980B9; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+    <span style="background-color: transparent; color: #1B4F72; font-weight: bold;">📝 TRACK 03 EXPECTED OUTCOME:</span>
+    <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span>
+</div>""", unsafe_allow_html=True)
+
+flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()}
+client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers)
+
+st.download_button(
+    label=f"📥 Download Customized PDF Passport for {client_name}",
+    data=client_pdf_bytes,
+    file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf",
+    mime="application/pdf",
+    use_container_width=True
+)
