@@ -40,6 +40,13 @@ layman_translation = {
     'epfo_employee_count': 'Employee Headcount Size',
     'epfo_payment_punctuality_score': 'Staff Salary Fund Punctuality'
 }
+
+# =====================================================================
+# 2. APPRAISAL LAYOUT DESIGN (STREAMLIT FRONTEND)
+# =====================================================================
+st.title("🏦 AI-Driven MSME Financial Health Passport")
+st.markdown("Designed for **Track 03: Financial Inclusion & Digital Lending**. This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand.")
+
 # =====================================================================
 # DYNAMIC IN-APP RETRAINING ENGINE WITH AUTO-LABEL SPLITTERS
 # =====================================================================
