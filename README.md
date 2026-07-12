@@ -1,5 +1,5 @@
 # 🏦 AI-Driven MSME Financial Health Passport 
-### 🚀 Track 03: Financial Inclusion, Digital Lending, and Credit Decisioning
+### 🚀 Track 03: Financial Health Score - Financial Inclusion, Digital Lending, and Credit Decisioning
 
 An end-to-end AI/ML credit underwriting engine built to onboard **New-to-Credit (NTC)** and **New-to-Bank (NTB)** small businesses. By replacing slow paper trails with live, consent-backed alternative footprints, this platform translates daily digital operations into an instant, bank-ready credit identity passport.
 
