@@ -24,7 +24,7 @@ st.image("idbi_banner.jpg", use_container_width=True)
 
 # 2. Create three columns below it to push the logo to the far right corner
 # 80% empty space on the left, 20% space for the logo container on the right
-space_col1, space_col2, logo_col = st.columns([2, 2, 1])
+space_col1, space_col2, logo_col = st.columns([4.25, 4.25, 1.5])
 
 with logo_col:
     # This renders the logo neatly right-aligned with the edge of the banner above
