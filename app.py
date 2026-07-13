@@ -19,9 +19,16 @@ st.set_page_config(
     layout="wide"
 )
 
-# ADD THE HEADER BANNER IMAGE HERE
+# 1. Display the IDBI banner across the full width of the screen
 st.image("idbi_banner.jpg", use_container_width=True)
 
+# 2. Create three columns below it to push the logo to the far right corner
+# 80% empty space on the left, 20% space for the logo container on the right
+space_col1, space_col2, logo_col = st.columns([4, 4, 2])
+
+with logo_col:
+    # This renders the logo neatly right-aligned with the edge of the banner above
+    st.image("vizagites.png", use_container_width=True)
 
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
