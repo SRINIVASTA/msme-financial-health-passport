@@ -499,7 +499,13 @@ with col_card:
     <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span> 
     </div>""", unsafe_allow_html=True) 
 
-    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc.to_dict().items()} 
+    # ===================================================================== 
+    # FIXED: ADD SINGLE ROW INDEX [0] TO EXTRICATE DICTIONARY OBJECT 
+    # ===================================================================== 
+    # Converts the row series cleanly instead of calling iloc directly
+    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()} 
+    
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers) 
+    # ===================================================================== 
  
     st.download_button(label=f"📄 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
