@@ -18,20 +18,43 @@ st.set_page_config(
     page_icon="🏦", 
     layout="wide"
 )
-# 2. Display the main IDBI banner full width
+# 1. Display the main IDBI banner full width
 st.image("idbi_banner.jpg", use_container_width=True)
 
-# 3. Structural Title and Badge Row Layout Setup
+# Remove top blank spacing
+st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+
+# 2. Setup the split columns row
 title_col, logo_col = st.columns([8.8, 1.2])
 
 with title_col:
+    # Main Page Title
     st.title("🏦 AI-Driven MSME Financial Health Passport")
+    
+    # MOVED INSIDE TITLE_COL: Bullet points are now locked to the left side only!
+    st.markdown(
+        """
+        <div style='margin-top: 5px; margin-bottom: 10px;'>
+            <p style='margin: 0; font-size: 13.5px; color: #1e3d59; font-weight: 600;'>
+                📌 Designed for TRACK 03: Financial Health Score – Financial Inclusion, Digital Lending, Credit Decisioning
+            </p>
+            <p style='margin: 4px 0 0 15px; font-size: 12.5px; color: #6c757d; font-weight: 400; line-height: 1.4;'>
+                • This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool.
+            </p>
+            <p style='margin: 2px 0 0 15px; font-size: 12.5px; color: #6c757d; font-weight: 400;'>
+                • Built as an accessible passport framework that anyone can easily interpret.
+            </p>
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 with logo_col:
-    # Adds a small buffer space to align the badge baseline to the text
-    st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
+    # Custom spacing to push the logo down slightly to balance with the text row
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    
     try:
-        # Constrained asset width prevents the team row from stretching vertically
+        # Lock the width to keep it small and crisp
         st.image("vizagites.png", width=95)
         st.markdown(
             "<p style='text-align: center; margin-top: -3px; font-size: 10px; color: #6c757d; font-weight: 500; width: 95px;'>"
@@ -46,32 +69,6 @@ with logo_col:
             "</div>", 
             unsafe_allow_html=True
         )
-
-# =====================================================================
-# TRACK DETAILS & PROJECT DESCRIPTION (Stacked line-by-line)
-# =====================================================================
-st.markdown(
-    """
-    <div style='margin-top: -10px; margin-bottom: 20px;'>
-        <p style='margin: 0; font-size: 14px; color: #1e3d59; font-weight: 600;'>
-            📌 Designed for TRACK 03: Financial Health Score – Financial Inclusion, Digital Lending, Credit Decisioning
-        </p>
-        <p style='margin: 4px 0 0 20px; font-size: 13px; color: #6c757d; font-weight: 400; line-height: 1.4;'>
-            • This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool.
-        </p>
-        <p style='margin: 2px 0 0 20px; font-size: 13px; color: #6c757d; font-weight: 400;'>
-            • Built as an accessible passport framework that anyone can easily interpret.
-        </p>
-    </div>
-    """,
-    unsafe_allow_html=True
-)
-
-
-# 4. Fluid block subtitle caption
-# st.caption(
-#    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
-#    "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
 
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
