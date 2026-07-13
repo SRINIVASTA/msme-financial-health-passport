@@ -341,7 +341,15 @@ with col_sidebar:
  
         selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row) 
  
-        selected_row_index = int(selected_msme_label.split("-")) - 1 
+        # =====================================================================
+        # FIXED: SAFETY GUARD CHECK TO PREVENT TYPEERROR SPLIT CRASHES
+        # =====================================================================
+        if selected_msme_label is None or not isinstance(selected_msme_label, str) or "-" not in selected_msme_label:
+            selected_row_index = 0
+        else:
+            selected_row_index = int(selected_msme_label.split("-")[-1]) - 1 
+        # =====================================================================
+
         extracted_row_data = active_df.iloc[selected_row_index] 
 
         if "sb_balance" not in st.session_state: 
