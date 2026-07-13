@@ -34,7 +34,7 @@ with logo_col:
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     
     # Render your team logo smoothly in the corner box
-    st.image("teamlogo.jpg", use_container_width=True)
+    st.image("vizagites.png", use_container_width=True)
     
     # Subtle development tag underneath the logo
     st.markdown(
