@@ -18,30 +18,31 @@ st.set_page_config(
     page_icon="🏦", 
     layout="wide"
 )
-# 1. Display the main IDBI banner full width
-st.image("idbi_banner.jpg", use_container_width=True)
+# 1. Clean, isolated section container for the IDBI Banner
+with st.container():
+    st.image("idbi_banner.jpg", width=None, use_container_width=True)
 
-# Remove top blank spacing
-st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+# Add a tiny visual spacing cushion between the banner and title
+st.write("")
 
-# 2. Setup the split columns row
+# 2. Main Header Row (Title on left, team logo badge on right)
 title_col, logo_col = st.columns([8.8, 1.2])
 
 with title_col:
     # Main Page Title
     st.title("🏦 AI-Driven MSME Financial Health Passport")
     
-    # MOVED INSIDE TITLE_COL: Bullet points are now locked to the left side only!
+    # Track Details & Bullet Points nested directly on the left side
     st.markdown(
         """
-        <div style='margin-top: 5px; margin-bottom: 10px;'>
-            <p style='margin: 0; font-size: 13.5px; color: #1e3d59; font-weight: 600;'>
+        <div style='margin-top: 5px; margin-bottom: 15px;'>
+            <p style='margin: 0; font-size: 14px; color: #1e3d59; font-weight: 600;'>
                 📌 Designed for TRACK 03: Financial Health Score – Financial Inclusion, Digital Lending, Credit Decisioning
             </p>
-            <p style='margin: 4px 0 0 15px; font-size: 12.5px; color: #6c757d; font-weight: 400; line-height: 1.4;'>
+            <p style='margin: 6px 0 0 15px; font-size: 13px; color: #6c757d; font-weight: 400; line-height: 1.5;'>
                 • This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool.
             </p>
-            <p style='margin: 2px 0 0 15px; font-size: 12.5px; color: #6c757d; font-weight: 400;'>
+            <p style='margin: 4px 0 0 15px; font-size: 13px; color: #6c757d; font-weight: 400;'>
                 • Built as an accessible passport framework that anyone can easily interpret.
             </p>
         </div>
@@ -50,26 +51,26 @@ with title_col:
     )
 
 with logo_col:
-    # Custom spacing to push the logo down slightly to balance with the text row
-    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+    # Push the logo badge down slightly to balance with the title row
+    st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
     
     try:
-        # Lock the width to keep it small and crisp
+        # Fixed width prevents vertical wrapping issues
         st.image("vizagites.png", width=95)
         st.markdown(
-            "<p style='text-align: center; margin-top: -3px; font-size: 10px; color: #6c757d; font-weight: 500; width: 95px;'>"
-            "Developed by Vizagites"
+            "<p style='text-align: center; margin-top: -3px; font-size: 10px; color: #6c757d; font-weight: 500; width: 95px;'>\n"
+            "Developed by Vizagites\n"
             "</p>", 
             unsafe_allow_html=True
         )
     except Exception:
+        # Fallback text box if image file is missing or fails to render
         st.markdown(
             "<div style='text-align: right; font-weight: bold; color: #1e3d59; font-size: 14px; margin-top: 10px;'>"
             "🚀 Vizagites"
             "</div>", 
             unsafe_allow_html=True
         )
-
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
     'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
