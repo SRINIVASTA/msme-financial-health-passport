@@ -18,36 +18,38 @@ st.set_page_config(
     page_icon="🏦", 
     layout="wide"
 )
+# 1. Display the main IDBI banner full width
+st.image("idbi_banner.jpg", use_container_width=True)
+
+# 2. Clear out top padding and create columns for the title row
+st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+title_col, logo_col = st.columns([8.5, 1.5])
+
+with title_col:
+    # Your main page title goes on the left side
+    st.title("🏦 AI-Driven MSME Financial Health Passport")
 
 with logo_col:
-    # Custom spacing to push the logo down slightly
+    # Custom spacing to push the logo down slightly so it aligns with the text baseline
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     
-    try:
-        # Attempts to load your logo file safely
-        st.image("vizagites.png", use_container_width=True)
-        
-        # Displays the development tag only if the image loads successfully
-        st.markdown(
-            "<p style='text-align: center; margin-top: -5px; font-size: 11px; color: #6c757d; font-weight: 500;'>"
-            "Developed by Vizagites"
-            "</p>", 
-            unsafe_allow_html=True
-        )
-    except Exception:
-        # Fallback text alternative if the image is missing, preventing an app crash
-        st.markdown(
-            "<div style='text-align: right; font-weight: bold; color: #1e3d59; font-size: 16px; margin-top: 10px;'>"
-            "🚀 Team Vizagites"
-            "</div>", 
-            unsafe_allow_html=True
-        )
+    # Render your team logo smoothly in the corner box
+    st.image("teamlogo.jpg", use_container_width=True)
+    
+    # Subtle development tag underneath the logo
+    st.markdown(
+        "<p style='text-align: center; margin-top: -5px; font-size: 11px; color: #6c757d; font-weight: 500;'>"
+        "Developed by Vizagites"
+        "</p>", 
+        unsafe_allow_html=True
+    )
 
-# 3. PLACED HERE: Subtitle text stretches across the entire screen width below the logo row
+# 3. Add your description subtitle below the title/logo row
 st.caption(
-    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
+    "Designed for TRACK 03 - Financial Health Score- Financial Inclusion, Digital Lending, Credit Decisioning. "
     "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
 )
+
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
     'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
