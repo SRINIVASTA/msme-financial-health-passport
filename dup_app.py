@@ -178,11 +178,22 @@ def train_custom_credit_engine(custom_df=None):
 # ===================================================================== 
 # ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE 
 # ===================================================================== 
+# ===================================================================== 
+# VERIFIED BLOCK 3: PDF COMPILED HEADERS WITH VISUAL BADGES AND DRAWINGS
+# ===================================================================== 
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
+from reportlab.lib.pagesizes import letter 
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle 
+from reportlab.lib import colors 
+# Import safe fundamental vector drawing tools to build line objects natively
+from reportlab.graphics.shapes import Drawing, Line
+import io
+
 def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters): 
-    """Compiles an audit-ready financial health passport report with a letterhead banner."""
+    """Compiles an audit-ready financial health passport report document buffer."""
     buffer = io.BytesIO()
     
-    # We maintain a topMargin of 25 so the combined letterhead grid aligns at the absolute top boundary line
+    # Maintain a topMargin of 25 so the combined letterhead grid aligns at the absolute top boundary line
     doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=25, bottomMargin=40) 
     story = [] 
     styles = getSampleStyleSheet() 
@@ -218,21 +229,23 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         # Emergency fallback print line block if system assets are completely missing from drive folders
         fallback_style = ParagraphStyle('FallbackText', parent=bold_body, textColor=colors.HexColor('#1B365D'), fontSize=14)
         fallback_data = [[Paragraph("<b>IDBI BANK CREDIT PASSPORT SYSTEM</b>", fallback_style), Paragraph("<b>DEVELOPED BY VIZAGITES</b>", fallback_style)]]
-        t_fallback = Table(fallback_data, colWidths=[382, 150])
+        t_fallback = Table(fallback_data, colWidths=[350, 182])
         story.append(t_fallback)
 
     # =====================================================================
-    # 📏 THIN SOLID DIVISION RULE (SEPARATION DIVIDER LINE)
+    # 📏 THIN NATIVE VECTOR DIVISION RULE (SEPARATION DIVIDER LINE)
     # =====================================================================
-    # Draws a clean line spanning full width, colored to match the IDBI corporate color palette 
+    # Uses safe ReportLab vector shapes (Drawing & Line) instead of HRFlowables to eliminate NameErrors
     story.append(Spacer(1, 8))
-    story.append(HRFlowable(
-        width="100%", 
-        thickness=1.5, 
-        color=colors.HexColor('#1B365D'), 
-        spaceBefore=0, 
-        spaceAfter=12
-    ))
+    
+    divider_canvas = Drawing(532, 5) # Create canvas width tracking exactly to margins
+    solid_line = Line(0, 2, 532, 2)   # Render vector span across full bounds
+    solid_line.strokeColor = colors.HexColor('#1B365D')
+    solid_line.strokeWidth = 1.5
+    
+    divider_canvas.add(solid_line)
+    story.append(divider_canvas)
+    story.append(Spacer(1, 12))
     # =====================================================================
 
     # Continue rendering underwriting data tables exactly as before
@@ -271,6 +284,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     doc.build(story) 
     buffer.seek(0)
     return buffer.getvalue()
+
 # ===================================================================== 
 # SIDEBAR LAYER & PROTOCOL STATE SYNCHRONIZATION 
 # ===================================================================== 
