@@ -125,7 +125,7 @@ def train_custom_credit_engine(custom_df=None):
                      df[f] = np.random.randint(15, 150, size=len(df))
                  else:
                      # Default fallback for minor operational tracking metrics
-                df[f] = 0.0             
+                    df[f] = 0.0             
         df = df[REQUIRED_FEATURES + (['is_default'] if 'is_default' in df.columns else [])]
         
         for col in REQUIRED_FEATURES:
