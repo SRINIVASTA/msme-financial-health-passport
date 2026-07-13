@@ -94,117 +94,87 @@ layman_translation = {
 } 
 
 # ===================================================================== 
-# DYNAMIC IN-APP RETRAINING ENGINE WITH AUTO-CORRECT SCHEMAS
+# DYNAMIC IN-APP RETRAINING ENGINE WITH SHAP TREE WEIGHT RETENTION
 # ===================================================================== 
 def train_custom_credit_engine(custom_df=None): 
-    """Ingests data, runs structural gates, and generates dynamic signal variances.""" 
+    """Trains on a stable 1,200 row database first, then overlays custom sandbox rows.""" 
     validation_failed = False
     error_message = ""
     
+    # 1. ALWAYS build the large baseline dataset first so the model learns all 10 feature weights
+    np.random.seed(42) 
+    n_samples = 1200 
+    base_data = { 
+        'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000, 
+        'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples), 
+        'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
+        'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000, 
+        'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
+        'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples), 
+        'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples), 
+        'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples), 
+        'epfo_employee_count': np.random.randint(2, 50, size=n_samples), 
+        'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples) 
+    } 
+    train_df = pd.DataFrame(base_data) 
+    risk_heuristic = ( 
+        (train_df['aa_fund_insufficient_bounces_3m'] * 0.5) +
+        (train_df['gst_buyer_concentration_ratio'] * 2.5) + 
+        (train_df['gst_filing_delay_days_avg'] * 0.20) - 
+        (train_df['aa_inflow_outflow_ratio'] * 1.5) - 
+        (train_df['epfo_payment_punctuality_score'] * 1.2) 
+    ) 
+    train_df['is_default'] = (risk_heuristic >= np.percentile(risk_heuristic, 85)).astype(int) 
+
+    # 2. Train the robust XGBoost model using the large comprehensive matrix
+    X_train = train_df[REQUIRED_FEATURES] 
+    y_train = train_df['is_default'] 
+    constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1) 
+    model = xgb.XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, monotone_constraints=constraints) 
+    model.fit(X_train, y_train) 
+    explainer = shap.TreeExplainer(model) 
+
+    # 3. Process the sandbox rows for active user inspection and testing
     if custom_df is not None: 
         df = custom_df.copy() 
         df.columns = [str(c).lower().strip() for c in df.columns] 
         
-        # Auto-detect cut-off or trimmed GST header text variations dynamically
         for actual_col in df.columns:
             if actual_col.startswith('gst_monthly'):
                 df = df.rename(columns={actual_col: 'gst_monthly_t'})
                 break
 
-        # --- STRICT DATA VALIDATION TALLY GATES ---
-        mandatory_upload_columns = [
-            'aa_avg_daily_balance_inr', 
-            'aa_inflow_outflow_ratio', 
-            'aa_fund_insufficient_bounces_3m', 
-            'gst_monthly_t'
-        ]
-        
+        # --- VALIDATION TALLY GATES ---
+        mandatory_upload_columns = ['aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m', 'gst_monthly_t']
         missing_from_upload = [col for col in mandatory_upload_columns if col not in df.columns]
         
         if missing_from_upload:
             validation_failed = True
-            error_message = f"File verification failed. Missing required columns: {', '.join(missing_from_upload)}"
+            error_message = f"File verification failed. Missing columns: {', '.join(missing_from_upload)}"
             return None, None, REQUIRED_FEATURES, None, validation_failed, error_message
 
-        # Remap the shorthand column to match core model feature names
         df['gst_monthly_turnover_inr'] = df['gst_monthly_t']
         df = df.drop(columns=['row_id', 'id', 'sno', 'unnamed: 0', 'gst_monthly_t'], errors='ignore') 
         
-        # FIX: Generate random row-by-row signal variation for the unprovided features
-        # This provides a mathematical contrast, allowing the SHAP engine to plot all 10 bars
-        np.random.seed(len(df)) # Maintain repeatable variance bounds across manual sessions
+        # Inject dynamic variations into unprovided columns for the 10 custom test rows to enrich SHAP spectrums
+        np.random.seed(len(df))
         n_rows = len(df)
+        if 'gst_buyer_concentration_ratio' not in df.columns: df['gst_buyer_concentration_ratio'] = np.random.uniform(0.1, 0.5, size=n_rows)
+        if 'gst_filing_delay_days_avg' not in df.columns: df['gst_filing_delay_days_avg'] = np.random.randint(1, 5, size=n_rows)
+        if 'upi_tx_volume_monthly' not in df.columns: df['upi_tx_volume_monthly'] = np.random.randint(300, 1200, size=n_rows)
+        if 'upi_ticket_size_avg_inr' not in df.columns: df['upi_ticket_size_avg_inr'] = np.random.uniform(200, 600, size=n_rows)
+        if 'epfo_employee_count' not in df.columns: df['epfo_employee_count'] = np.random.randint(10, 35, size=n_rows)
+        if 'epfo_payment_punctuality_score' not in df.columns: df['epfo_payment_punctuality_score'] = np.random.uniform(0.8, 1.0, size=n_rows)
         
-        if 'gst_buyer_concentration_ratio' not in df.columns:
-            df['gst_buyer_concentration_ratio'] = np.random.uniform(0.1, 0.6, size=n_rows)
-        if 'gst_filing_delay_days_avg' not in df.columns:
-            df['gst_filing_delay_days_avg'] = np.random.randint(0, 7, size=n_rows)
-        if 'upi_tx_volume_monthly' not in df.columns:
-            df['upi_tx_volume_monthly'] = np.random.randint(100, 1500, size=n_rows)
-        if 'upi_ticket_size_avg_inr' not in df.columns:
-            df['upi_ticket_size_avg_inr'] = np.random.uniform(150, 800, size=n_rows)
-        if 'epfo_employee_count' not in df.columns:
-            df['epfo_employee_count'] = np.random.randint(5, 45, size=n_rows)
-        if 'epfo_payment_punctuality_score' not in df.columns:
-            df['epfo_payment_punctuality_score'] = np.random.uniform(0.7, 1.0, size=n_rows)
- 
-        df = df[REQUIRED_FEATURES + (['is_default'] if 'is_default' in df.columns else [])] 
- 
         for col in REQUIRED_FEATURES: 
             df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0) 
- 
-        if 'is_default' not in df.columns: 
-            # Comprehensive evaluation matrix math utilizing all variables to calculate defaults
-            risk_heuristic = ( 
-                (df['aa_fund_insufficient_bounces_3m'] * 0.6) +
-                (df['gst_buyer_concentration_ratio'] * 2.0) + 
-                (df['gst_filing_delay_days_avg'] * 0.15) - 
-                (df['aa_inflow_outflow_ratio'] * 1.4) - 
-                (df['epfo_payment_punctuality_score'] * 1.1) 
-            ) 
-            if len(df) > 1: 
-                df['is_default'] = (risk_heuristic >= np.median(risk_heuristic)).astype(int) 
-            else: 
-                df['is_default'] = 0 
-        else: 
-            df['is_default'] = df['is_default'].fillna(0).astype(int) 
- 
-        if len(df) > 1 and df['is_default'].nunique() == 1: 
-            df.iloc[0, df.columns.get_loc('is_default')] = 1 - df.iloc[0, df.columns.get_loc('is_default')] 
-    else: 
-        # Standard baseline simulation matrix channel
-        np.random.seed(42) 
-        n_samples = 1200 
-        data = { 
-            'aa_avg_daily_balance_inr': np.random.exponential(scale=150000, size=n_samples) + 20000, 
-            'aa_inflow_outflow_ratio': np.random.normal(loc=1.05, scale=0.15, size=n_samples), 
-            'aa_fund_insufficient_bounces_3m': np.random.poisson(lam=0.8, size=n_samples),
-            'gst_monthly_turnover_inr': np.random.exponential(scale=500000, size=n_samples) + 50000, 
-            'gst_buyer_concentration_ratio': np.random.beta(a=2, b=5, size=n_samples), 
-            'gst_filing_delay_days_avg': np.random.poisson(lam=3, size=n_samples), 
-            'upi_tx_volume_monthly': np.random.randint(50, 2000, size=n_samples), 
-            'upi_ticket_size_avg_inr': np.random.normal(loc=350, scale=120, size=n_samples), 
-            'epfo_employee_count': np.random.randint(2, 50, size=n_samples), 
-            'epfo_payment_punctuality_score': np.random.uniform(0.5, 1.0, size=n_samples) 
-        } 
-        df = pd.DataFrame(data) 
-        risk_heuristic = ( 
-            (df['aa_fund_insufficient_bounces_3m'] * 0.5) +
-            (df['gst_buyer_concentration_ratio'] * 2.5) + 
-            (df['gst_filing_delay_days_avg'] * 0.20) - 
-            (df['aa_inflow_outflow_ratio'] * 1.5) - 
-            (df['epfo_payment_punctuality_score'] * 1.2) 
-        ) 
-        df['is_default'] = (risk_heuristic >= np.percentile(risk_heuristic, 85)).astype(int) 
+            
+        df['is_default'] = model.predict(df[REQUIRED_FEATURES])
+        output_df = df
+    else:
+        output_df = train_df
 
-    X = df[REQUIRED_FEATURES] 
-    y = df['is_default'] 
- 
-    constraints = (0, -1, 1, 0, 1, 1, 0, 0, -1, -1) 
-    model = xgb.XGBClassifier(n_estimators=100, max_depth=4, learning_rate=0.08, monotone_constraints=constraints) 
-    model.fit(X, y) 
-    explainer = shap.TreeExplainer(model) 
-    return model, explainer, REQUIRED_FEATURES, df, validation_failed, error_message
+    return model, explainer, REQUIRED_FEATURES, output_df, validation_failed, error_message
 # ===================================================================== 
 # ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE 
 # ===================================================================== 
@@ -229,7 +199,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)], 
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)] 
     ] 
-    t_score = Table(score_data, colWidths=[240, 240]) 
+    t_score = Table(score_data, colWidths=) 
     t_score.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 8)])) 
     story.append(t_score) 
     story.append(Spacer(1, 15)) 
@@ -240,7 +210,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         v = payload_dict.get(f, 0.0) 
         metrics_data.append([Paragraph(layman_translation.get(f, f), body_style), Paragraph(str(v), body_style)]) 
  
-    t_metrics = Table(metrics_data, colWidths=[240, 240]) 
+    t_metrics = Table(metrics_data, colWidths=) 
     t_metrics.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('PADDING', (0,0), (-1,-1), 5)])) 
     story.append(t_metrics) 
     story.append(Spacer(1, 15)) 
@@ -263,7 +233,7 @@ def sync_inputs_to_selected_row():
     """State sync callback executed instantly when changing dropdown item.""" 
     if "active_dataset" in st.session_state: 
         current_label = st.session_state.active_msme_dropdown 
-        row_idx = int(current_label.split("-")[1]) - 1 
+        row_idx = int(current_label.split("-")[-1]) - 1 
         row_data = st.session_state["active_dataset"].iloc[row_idx]
         
         # Flush targets out straight to synchronized sidebar parameter caches safely 
@@ -294,9 +264,6 @@ with col_sidebar:
         for k in ["active_model", "active_explainer", "active_features", "active_dataset", "last_loaded_file", "sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]: 
             if k in st.session_state: 
                 del st.session_state[k]
-# ===================================================================== 
-# UPDATED BLOCK 5: DYNAMIC CROSS-MODE INTERACTIVE ROUTER
-# ===================================================================== 
     # CHANNEL REGIME A: DOCUMENT sandbox FILE UPLOAD 
     if data_source_mode == "Batch Document Upload (CSV Sandbox)": 
         st.markdown("---") 
@@ -343,7 +310,6 @@ with col_sidebar:
             st.session_state["active_features"] = f_list 
             st.session_state["active_dataset"] = d_matrix 
 
-        # DYNAMIC UPGRADE: Let the user select which row of their 10 uploaded rows to test
         st.markdown("---")
         st.subheader("📋 Step 1: Select Uploaded Row & Inspect Parameters")
         active_df = st.session_state["active_dataset"]
@@ -380,7 +346,6 @@ with col_sidebar:
             
         extracted_row_data = active_df.iloc[selected_row_index] 
 
-    # Shared parameter loading logic runs smoothly across both selections
     if "sb_balance" not in st.session_state: 
         st.session_state["sb_balance"] = int(extracted_row_data.get('aa_avg_daily_balance_inr', 0)) 
         st.session_state["sb_ratio"] = float(np.clip(extracted_row_data.get('aa_inflow_outflow_ratio', 1.0), 0.5, 2.0)) 
@@ -437,7 +402,7 @@ with col_card:
     st.markdown("---") 
     st.subheader("🎯 Step 2: Live Credit Card Passport Results") 
     prob_output = model.predict_proba(profile_payload) 
-    default_probability = float(prob_output[0, 1]) 
+    default_probability = float(prob_output) 
     non_default_probability = 1.0 - default_probability 
     health_score = int(300 + (non_default_probability * 600)) 
     risk_level_pct = default_probability * 100 
@@ -525,7 +490,7 @@ with col_card:
     <span style="background-color: transparent; color: #212F3D;">Generates an instant Financial Health Card tailored specifically for individual NTC/NTB applicants.</span> 
     </div>""", unsafe_allow_html=True) 
 
-    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc[0].to_dict().items()} 
+    flat_payload_dict = {k: float(v) for k, v in profile_payload.iloc.to_dict().items()} 
     client_pdf_bytes = generate_credit_pdf(client_name, health_score, risk_level_pct, badge_status, flat_payload_dict, pos_drivers, neg_drivers) 
  
     st.download_button(label=f"📄 Download Customized PDF Passport for {client_name}", data=client_pdf_bytes, file_name=f"credit_passport_{client_name.lower().replace(' ', '_').replace('(', '').replace(')', '')}.pdf", mime="application/pdf", use_container_width=True)
