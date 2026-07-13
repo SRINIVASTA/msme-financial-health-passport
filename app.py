@@ -112,20 +112,20 @@ def train_custom_credit_engine(custom_df=None):
         # Strip structural primary index markers or row counter column variations
         df = df.drop(columns=['row_id', 'id', 'sno', 'unnamed: 0'], errors='ignore')
         
-for f in REQUIRED_FEATURES: 
-     if f not in df.columns: 
-         if 'balance' in f or 'turnover' in f:
-             # Impute realistic positive financial baseline averages
-             df[f] = np.random.uniform(150000, 500000, size=len(df))
-         elif 'ratio' in f or 'punctuality' in f:
-             # Impute stable operation coefficients close to 1.0
-             df[f] = np.random.uniform(0.85, 1.2, size=len(df))
-         elif 'count' in f or 'volume' in f:
-             # Impute realistic counts for an active team
-             df[f] = np.random.randint(15, 150, size=len(df))
-         else:
-             # Default fallback for minor operational tracking metrics
-             df[f] = 0.0             
+        for f in REQUIRED_FEATURES: 
+             if f not in df.columns: 
+                 if 'balance' in f or 'turnover' in f:
+                     # Impute realistic positive financial baseline averages
+                     df[f] = np.random.uniform(150000, 500000, size=len(df))
+                 elif 'ratio' in f or 'punctuality' in f:
+                     # Impute stable operation coefficients close to 1.0
+                     df[f] = np.random.uniform(0.85, 1.2, size=len(df))
+                 elif 'count' in f or 'volume' in f:
+                     # Impute realistic counts for an active team
+                     df[f] = np.random.randint(15, 150, size=len(df))
+                 else:
+                     # Default fallback for minor operational tracking metrics
+                df[f] = 0.0             
         df = df[REQUIRED_FEATURES + (['is_default'] if 'is_default' in df.columns else [])]
         
         for col in REQUIRED_FEATURES:
