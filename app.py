@@ -19,23 +19,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# 1. Display the main IDBI banner full width
-st.image("idbi_banner.jpg", use_container_width=True)
-
-# 2. Clear out top padding and create columns for the title row
-st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
-title_col, logo_col = st.columns([8.5, 1.5])
-
-with title_col:
-    # Your main page title goes on the left side
-    st.title("🏦 AI-Driven MSME Financial Health Passport")
-
 with logo_col:
-    # Custom spacing to push the logo down slightly to align with text baseline
+    # Custom spacing to push the logo down slightly
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     
     try:
+        # Attempts to load your logo file safely
         st.image("vizagites.png", use_container_width=True)
+        
+        # Displays the development tag only if the image loads successfully
         st.markdown(
             "<p style='text-align: center; margin-top: -5px; font-size: 11px; color: #6c757d; font-weight: 500;'>"
             "Developed by Vizagites"
@@ -43,6 +35,7 @@ with logo_col:
             unsafe_allow_html=True
         )
     except Exception:
+        # Fallback text alternative if the image is missing, preventing an app crash
         st.markdown(
             "<div style='text-align: right; font-weight: bold; color: #1e3d59; font-size: 16px; margin-top: 10px;'>"
             "🚀 Team Vizagites"
