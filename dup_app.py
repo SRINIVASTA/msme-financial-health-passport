@@ -179,16 +179,63 @@ def train_custom_credit_engine(custom_df=None):
 # ENTERPRISE PDF CREDIT HEALTH CARD REPORTING ENGINE 
 # ===================================================================== 
 def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, hurters): 
-    """Compiles an audit-ready financial health passport report document buffer."""
+    """Compiles an audit-ready financial health passport report with a letterhead banner."""
     buffer = io.BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40) 
+    
+    # We maintain a topMargin of 25 so the combined letterhead grid aligns at the absolute top boundary line
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=25, bottomMargin=40) 
     story = [] 
     styles = getSampleStyleSheet() 
-    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#1B365D'), spaceAfter=15) 
+    title_style = ParagraphStyle('DocTitle', parent=styles['Heading1'], fontSize=22, textColor=colors.HexColor('#1B365D'), spaceBefore=12, spaceAfter=15) 
     header_style = ParagraphStyle('SecHeader', parent=styles['Heading2'], fontSize=14, textColor=colors.HexColor('#1B365D'), spaceBefore=15, spaceAfter=8) 
     body_style = ParagraphStyle('DocBody', parent=styles['Normal'], fontSize=10, leading=14, spaceAfter=6) 
     bold_body = ParagraphStyle('DocBodyBold', parent=body_style, fontName='Helvetica-Bold') 
  
+    # =====================================================================
+    # 🏢 COMBINED EXECUTIVE LETTERHEAD ROW (IDBI BANNER + VIZAGITES LOGO)
+    # =====================================================================
+    try:
+        # Standard inner-margin bounding container canvas width is exactly 532 pixels.
+        # IDBI Banner gets 437px width, Vizagites badge gets 95px width to prevent side clipping.
+        banner_img = RLImage("idbi_banner.jpg", width=437, height=60)
+        logo_img = RLImage("vizagites.png", width=95, height=60)
+        
+        # Structure elements inside a 1-row table element
+        header_grid_data = [[banner_img, logo_img]]
+        t_header = Table(header_grid_data, colWidths=[437, 95])
+        
+        # Strip all box borders and padding indices to make the backing grid completely invisible
+        t_header.setStyle(TableStyle([
+            ('VALIGN', (0,0), (-1,-1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0,0), (-1,-1), 0),
+            ('TOPPADDING', (0,0), (-1,-1), 0),
+            ('LEFTPADDING', (0,0), (-1,-1), 0),
+            ('RIGHTPADDING', (0,0), (-1,-1), 0),
+        ]))
+        story.append(t_header)
+        
+    except Exception as img_err:
+        # Emergency fallback print line block if system assets are completely missing from drive folders
+        fallback_style = ParagraphStyle('FallbackText', parent=bold_body, textColor=colors.HexColor('#1B365D'), fontSize=14)
+        fallback_data = [[Paragraph("<b>IDBI BANK CREDIT PASSPORT SYSTEM</b>", fallback_style), Paragraph("<b>DEVELOPED BY VIZAGITES</b>", fallback_style)]]
+        t_fallback = Table(fallback_data, colWidths=[382, 150])
+        story.append(t_fallback)
+
+    # =====================================================================
+    # 📏 THIN SOLID DIVISION RULE (SEPARATION DIVIDER LINE)
+    # =====================================================================
+    # Draws a clean line spanning full width, colored to match the IDBI corporate color palette 
+    story.append(Spacer(1, 8))
+    story.append(HRFlowable(
+        width="100%", 
+        thickness=1.5, 
+        color=colors.HexColor('#1B365D'), 
+        spaceBefore=0, 
+        spaceAfter=12
+    ))
+    # =====================================================================
+
+    # Continue rendering underwriting data tables exactly as before
     story.append(Paragraph("<b>MSME FINANCIAL HEALTH PASSPORT</b>", title_style)) 
     story.append(Paragraph(f"<b>Client Enterprise Name:</b> {client_name}", body_style)) 
     story.append(Paragraph(f"<b>System Underwriting Status:</b> {tier}", bold_body)) 
@@ -199,8 +246,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         [Paragraph("Financial Health Index Score", body_style), Paragraph(f"<b>{score} / 900</b>", bold_body)], 
         [Paragraph("Estimated Default Risk Probability", body_style), Paragraph(f"<b>{risk:.2f}%</b>", bold_body)] 
     ] 
-    # FIXED: Supplied explicit column width dimensions to prevent syntax parser crash
-    t_score = Table(score_data, colWidths=[220, 220]) 
+    t_score = Table(score_data, colWidths=[266, 266]) 
     t_score.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.grey), ('PADDING', (0,0), (-1,-1), 8)])) 
     story.append(t_score) 
     story.append(Spacer(1, 15)) 
@@ -211,8 +257,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
         v = payload_dict.get(f, 0.0) 
         metrics_data.append([Paragraph(layman_translation.get(f, f), body_style), Paragraph(str(v), body_style)]) 
  
-    # FIXED: Supplied explicit column width dimensions to prevent syntax parser crash
-    t_metrics = Table(metrics_data, colWidths=[220, 220]) 
+    t_metrics = Table(metrics_data, colWidths=[266, 266]) 
     t_metrics.setStyle(TableStyle([('BACKGROUND', (0,0), (1,0), colors.HexColor('#EAEEF4')), ('GRID', (0,0), (-1,-1), 0.5, colors.lightgrey), ('PADDING', (0,0), (-1,-1), 5)])) 
     story.append(t_metrics) 
     story.append(Spacer(1, 15)) 
@@ -225,8 +270,7 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     story.append(Paragraph("<i>This evaluation document is verified via decentralized account aggregators. Generated instantly via ULI protocol interfaces.</i>", body_style)) 
     doc.build(story) 
     buffer.seek(0)
-    return buffer.getvalue()
-# ===================================================================== 
+    return buffer.getvalue()# ===================================================================== 
 # SIDEBAR LAYER & PROTOCOL STATE SYNCHRONIZATION 
 # ===================================================================== 
 col_sidebar, col_card = st.columns([1, 1.2]) 
