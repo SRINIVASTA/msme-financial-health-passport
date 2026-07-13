@@ -47,10 +47,31 @@ with logo_col:
             unsafe_allow_html=True
         )
 
+# =====================================================================
+# TRACK DETAILS & PROJECT DESCRIPTION (Stacked line-by-line)
+# =====================================================================
+st.markdown(
+    """
+    <div style='margin-top: -10px; margin-bottom: 20px;'>
+        <p style='margin: 0; font-size: 14px; color: #1e3d59; font-weight: 600;'>
+            📌 Designed for TRACK 03: Financial Health Score – Financial Inclusion, Digital Lending, Credit Decisioning
+        </p>
+        <p style='margin: 4px 0 0 20px; font-size: 13px; color: #6c757d; font-weight: 400; line-height: 1.4;'>
+            • This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool.
+        </p>
+        <p style='margin: 2px 0 0 20px; font-size: 13px; color: #6c757d; font-weight: 400;'>
+            • Built as an accessible passport framework that anyone can easily interpret.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
+
+
 # 4. Fluid block subtitle caption
-st.caption(
-    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
-    "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
+# st.caption(
+#    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
+#    "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
 )
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
