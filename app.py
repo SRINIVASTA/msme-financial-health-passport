@@ -72,7 +72,7 @@ st.markdown(
 # st.caption(
 #    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
 #    "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
-)
+
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
     'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
