@@ -278,6 +278,9 @@ with col_sidebar:
         for k in ["active_model", "active_explainer", "active_features", "active_dataset", "last_loaded_file", "sb_balance", "sb_ratio", "sb_bounces", "sb_turnover", "sb_conc", "sb_delay", "sb_upi_vol", "sb_upi_size", "sb_epfo_staff", "sb_epfo_score", "sb_client_name", "active_msme_dropdown"]: 
             if k in st.session_state: 
                 del st.session_state[k]
+# ===================================================================== 
+# UPDATED BLOCK 5: DYNAMIC CROSS-MODE INTERACTIVE ROUTER
+# ===================================================================== 
     # CHANNEL REGIME A: DOCUMENT sandbox FILE UPLOAD 
     if data_source_mode == "Batch Document Upload (CSV Sandbox)": 
         st.markdown("---") 
@@ -289,7 +292,6 @@ with col_sidebar:
                 try: 
                     user_imported_df = pd.read_csv(uploaded_bank_file) 
                     
-                    # FIX: If the file only has 4 columns and headers are completely corrupted or blank, override them by index position
                     if len(user_imported_df.columns) == 4:
                         user_imported_df.columns = [
                             'aa_avg_daily_balance_inr', 
@@ -298,7 +300,6 @@ with col_sidebar:
                             'gst_monthly_t'
                         ]
                     
-                    # Unpack variables from the structural data validator gate
                     m_obj, e_obj, f_list, d_matrix, is_failed, err_msg = train_custom_credit_engine(user_imported_df) 
  
                     if is_failed:
@@ -325,6 +326,21 @@ with col_sidebar:
             st.session_state["active_explainer"] = e_obj 
             st.session_state["active_features"] = f_list 
             st.session_state["active_dataset"] = d_matrix 
+
+        # DYNAMIC UPGRADE: Let the user select which row of their 10 uploaded rows to test
+        st.markdown("---")
+        st.subheader("📋 Step 1: Select Uploaded Row & Inspect Parameters")
+        active_df = st.session_state["active_dataset"]
+        upload_options = [f"UPLOAD-{str(i+1).zfill(4)}" for i in range(len(active_df))]
+        
+        selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=upload_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row)
+        
+        if selected_msme_label is None or not isinstance(selected_msme_label, str) or "-" not in selected_msme_label:
+            selected_row_index = 0
+        else:
+            selected_row_index = int(selected_msme_label.split("-")[-1]) - 1
+            
+        extracted_row_data = active_df.iloc[selected_row_index]
  
     # CHANNEL REGIME B: LIVE REAL-TIME API INGESTIONS 
     else: 
@@ -341,29 +357,28 @@ with col_sidebar:
  
         selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row) 
  
-        # =====================================================================
-        # FIXED: SAFETY GUARD CHECK TO PREVENT TYPEERROR SPLIT CRASHES
-        # =====================================================================
         if selected_msme_label is None or not isinstance(selected_msme_label, str) or "-" not in selected_msme_label:
             selected_row_index = 0
         else:
             selected_row_index = int(selected_msme_label.split("-")[-1]) - 1 
-        # =====================================================================
-
+            
         extracted_row_data = active_df.iloc[selected_row_index] 
 
-        if "sb_balance" not in st.session_state: 
-            st.session_state["sb_balance"] = int(extracted_row_data['aa_avg_daily_balance_inr']) 
-            st.session_state["sb_ratio"] = float(np.clip(extracted_row_data['aa_inflow_outflow_ratio'], 0.5, 2.0)) 
-            st.session_state["sb_bounces"] = int(extracted_row_data['aa_fund_insufficient_bounces_3m'])
-            st.session_state["sb_turnover"] = int(extracted_row_data['gst_monthly_turnover_inr']) 
-            st.session_state["sb_conc"] = float(np.clip(extracted_row_data['gst_buyer_concentration_ratio'], 0.0, 1.0)) 
-            st.session_state["sb_delay"] = int(extracted_row_data['gst_filing_delay_days_avg']) 
-            st.session_state["sb_upi_vol"] = int(extracted_row_data['upi_tx_volume_monthly']) 
-            st.session_state["sb_upi_size"] = int(extracted_row_data['upi_ticket_size_avg_inr']) 
-            st.session_state["sb_epfo_staff"] = int(extracted_row_data['epfo_employee_count'])
-            st.session_state["sb_epfo_score"] = float(np.clip(extracted_row_data['epfo_payment_punctuality_score'], 0.0, 1.0)) 
-            st.session_state["sb_client_name"] = f"Sri Venkateswara Enterprises ({selected_msme_label})" 
+    # Shared parameter loading logic runs smoothly across both selections
+    if "sb_balance" not in st.session_state: 
+        st.session_state["sb_balance"] = int(extracted_row_data.get('aa_avg_daily_balance_inr', 0)) 
+        st.session_state["sb_ratio"] = float(np.clip(extracted_row_data.get('aa_inflow_outflow_ratio', 1.0), 0.5, 2.0)) 
+        st.session_state["sb_bounces"] = int(extracted_row_data.get('aa_fund_insufficient_bounces_3m', 0))
+        st.session_state["sb_turnover"] = int(extracted_row_data.get('gst_monthly_turnover_inr', 0)) 
+        st.session_state["sb_conc"] = float(np.clip(extracted_row_data.get('gst_buyer_concentration_ratio', 0.0), 0.0, 1.0)) 
+        st.session_state["sb_delay"] = int(extracted_row_data.get('gst_filing_delay_days_avg', 0)) 
+        st.session_state["sb_upi_vol"] = int(extracted_row_data.get('upi_tx_volume_monthly', 0)) 
+        st.session_state["sb_upi_size"] = int(extracted_row_data.get('upi_ticket_size_avg_inr', 10)) 
+        st.session_state["sb_epfo_staff"] = int(extracted_row_data.get('epfo_employee_count', 1))
+        st.session_state["sb_epfo_score"] = float(np.clip(extracted_row_data.get('epfo_payment_punctuality_score', 1.0), 0.0, 1.0)) 
+        
+        lbl = "UPLOAD" if data_source_mode == "Batch Document Upload (CSV Sandbox)" else "MSME"
+        st.session_state["sb_client_name"] = f"Sri Venkateswara Enterprises ({lbl}-{str(selected_row_index+1).zfill(4)})" 
             
     client_name = st.text_input("Assign Corporate Display Name", key="sb_client_name") 
  
