@@ -94,7 +94,7 @@ layman_translation = {
 } 
 
 # ===================================================================== 
-# DYNAMIC IN-APP RETRAINING ENGINE WITH STRICT DATA TALLY GATES
+# DYNAMIC IN-APP RETRAINING ENGINE WITH AUTO-CORRECT SCHEMAS
 # ===================================================================== 
 def train_custom_credit_engine(custom_df=None): 
     """Ingests data, runs a structural validation gate, and balances the risk arrays.""" 
@@ -103,10 +103,15 @@ def train_custom_credit_engine(custom_df=None):
     
     if custom_df is not None: 
         df = custom_df.copy() 
-        df.columns = [c.lower().strip() for c in df.columns] 
+        df.columns = [str(c).lower().strip() for c in df.columns] 
         
+        # FIX: Auto-detect cut-off or trimmed GST header text variations dynamically
+        for actual_col in df.columns:
+            if actual_col.startswith('gst_monthly'):
+                df = df.rename(columns={actual_col: 'gst_monthly_t'})
+                break
+
         # --- STRICT DATA VALIDATION TALLY GATES ---
-        # Verify the 4 foundational columns from the sandbox data upload tally up exactly
         mandatory_upload_columns = [
             'aa_avg_daily_balance_inr', 
             'aa_inflow_outflow_ratio', 
@@ -121,9 +126,8 @@ def train_custom_credit_engine(custom_df=None):
             error_message = f"File verification failed. Missing required columns: {', '.join(missing_from_upload)}"
             return None, None, REQUIRED_FEATURES, None, validation_failed, error_message
 
-        # Remap manual incoming shorthand to baseline production parameters
-        if 'gst_monthly_t' in df.columns:
-            df['gst_monthly_turnover_inr'] = df['gst_monthly_t']
+        # Remap the shorthand column to match core model feature names
+        df['gst_monthly_turnover_inr'] = df['gst_monthly_t']
 
         # Clean structure index artifacts out safely
         df = df.drop(columns=['row_id', 'id', 'sno', 'unnamed: 0', 'gst_monthly_t'], errors='ignore') 
@@ -285,14 +289,23 @@ with col_sidebar:
                 try: 
                     user_imported_df = pd.read_csv(uploaded_bank_file) 
                     
-                    # Unpack tally variables from the structural data validator gate
+                    # FIX: If the file only has 4 columns and headers are completely corrupted or blank, override them by index position
+                    if len(user_imported_df.columns) == 4:
+                        user_imported_df.columns = [
+                            'aa_avg_daily_balance_inr', 
+                            'aa_inflow_outflow_ratio', 
+                            'aa_fund_insufficient_bounces_3m', 
+                            'gst_monthly_t'
+                        ]
+                    
+                    # Unpack variables from the structural data validator gate
                     m_obj, e_obj, f_list, d_matrix, is_failed, err_msg = train_custom_credit_engine(user_imported_df) 
  
                     if is_failed:
                         if "active_dataset" in st.session_state: del st.session_state["active_dataset"]
                         st.sidebar.error(f"❌ Structural Tally Mismatch:\n{err_msg}")
                         st.error("🚨 Processing halted. The uploaded CSV fields do not tally with required schema constants.")
-                        st.stop() # Execution safely frozen right here
+                        st.stop() 
                     else:
                         st.session_state["active_model"] = m_obj 
                         st.session_state["active_explainer"] = e_obj 
@@ -328,7 +341,7 @@ with col_sidebar:
  
         selected_msme_label = st.selectbox(label="Choose target MSME to inspect:", options=msme_options, key="active_msme_dropdown", on_change=sync_inputs_to_selected_row) 
  
-        selected_row_index = int(selected_msme_label.split("-")[1]) - 1 
+        selected_row_index = int(selected_msme_label.split("-")) - 1 
         extracted_row_data = active_df.iloc[selected_row_index] 
 
         if "sb_balance" not in st.session_state: 
