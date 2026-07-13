@@ -22,8 +22,8 @@ st.set_page_config(
 st.image("idbi_banner.jpg", use_container_width=True)
 
 # 2. Clear out top padding and create columns for the title row
-st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
-title_col, logo_col = st.columns([8.5, 1.5])
+# st.markdown("<style>div.block-container{padding-top:1rem;}</style>", unsafe_allow_html=True)
+# title_col, logo_col = st.columns([8.5, 1.5])
 
 with title_col:
     # Your main page title goes on the left side
