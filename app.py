@@ -31,23 +31,28 @@ with title_col:
     st.title("🏦 AI-Driven MSME Financial Health Passport")
 
 with logo_col:
-    # Custom spacing to push the logo down slightly so it aligns with the text baseline
+    # Custom spacing to push the logo down slightly to align with text baseline
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
     
-    # Render your team logo smoothly in the corner box
-    st.image("vizagites.png", use_container_width=True)
-    
-    # Subtle development tag underneath the logo
-    st.markdown(
-        "<p style='text-align: center; margin-top: -5px; font-size: 11px; color: #6c757d; font-weight: 500;'>"
-        "Developed by Vizagites"
-        "</p>", 
-        unsafe_allow_html=True
-    )
+    try:
+        st.image("vizagites.png", use_container_width=True)
+        st.markdown(
+            "<p style='text-align: center; margin-top: -5px; font-size: 11px; color: #6c757d; font-weight: 500;'>"
+            "Developed by Vizagites"
+            "</p>", 
+            unsafe_allow_html=True
+        )
+    except Exception:
+        st.markdown(
+            "<div style='text-align: right; font-weight: bold; color: #1e3d59; font-size: 16px; margin-top: 10px;'>"
+            "🚀 Team Vizagites"
+            "</div>", 
+            unsafe_allow_html=True
+        )
 
-# 3. Add your description subtitle below the title/logo row
+# 3. PLACED HERE: Subtitle text stretches across the entire screen width below the logo row
 st.caption(
-    "Designed for TRACK 03 - Financial Health Score- Financial Inclusion, Digital Lending, Credit Decisioning. "
+    "Designed for TRACK 03 - Financial Health Score - Financial Inclusion, Digital Lending, Credit Decisioning. "
     "This dashboard translates alternate business metrics (GST, UPI, Bank Records) into an instant credit decision tool that anyone can understand."
 )
 # Mandatory sequence of numerical training features required by the XGBoost Engine
