@@ -19,6 +19,10 @@ st.set_page_config(
     layout="wide"
 )
 
+# ADD THE HEADER BANNER IMAGE HERE
+st.image("idbi_banner.jpg", use_container_width=True)
+
+
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
     'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
