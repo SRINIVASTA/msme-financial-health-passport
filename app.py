@@ -29,7 +29,13 @@ space_col1, space_col2, logo_col = st.columns([4, 4, 2])
 with logo_col:
     # This renders the logo neatly right-aligned with the edge of the banner above
     st.image("vizagites.png", use_container_width=True)
-
+ # Subtly right-aligned caption
+    st.markdown(
+        "<p style='text-align: right; margin-top: -5px; font-size: 12px; color: #6c757d;'>"
+        "Designed by Team Vizagites"
+        "</p>", 
+        unsafe_allow_html=True
+    )
 # Mandatory sequence of numerical training features required by the XGBoost Engine
 REQUIRED_FEATURES = [
     'aa_avg_daily_balance_inr', 'aa_inflow_outflow_ratio', 'aa_fund_insufficient_bounces_3m',
