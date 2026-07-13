@@ -32,7 +32,7 @@ with logo_col:
     st.markdown("<div style='margin-top: 12px;'></div>", unsafe_allow_html=True)
     try:
         # Constrained asset width prevents the team row from stretching vertically
-        st.image("vizagites.jpg", width=95)
+        st.image("vizagites.png", width=95)
         st.markdown(
             "<p style='text-align: center; margin-top: -3px; font-size: 10px; color: #6c757d; font-weight: 500; width: 95px;'>"
             "Developed by Vizagites"
