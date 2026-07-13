@@ -270,7 +270,8 @@ def generate_credit_pdf(client_name, score, risk, tier, payload_dict, helpers, h
     story.append(Paragraph("<i>This evaluation document is verified via decentralized account aggregators. Generated instantly via ULI protocol interfaces.</i>", body_style)) 
     doc.build(story) 
     buffer.seek(0)
-    return buffer.getvalue()# ===================================================================== 
+    return buffer.getvalue()
+# ===================================================================== 
 # SIDEBAR LAYER & PROTOCOL STATE SYNCHRONIZATION 
 # ===================================================================== 
 col_sidebar, col_card = st.columns([1, 1.2]) 
