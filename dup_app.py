@@ -401,13 +401,20 @@ with col_card:
         st.subheader("ℹ Active Registry Status") 
         st.info("Running on baseline Synthetic Databank Engine (1,200 Rows). Connected via ULI architectures.") 
         
+    # ===================================================================== 
+    # FIXED: SPECIFY TWO-DIMENSIONAL ARRAY SLICING FOR THE RISK MATRIX
+    # ===================================================================== 
     st.markdown("---") 
     st.subheader("🎯 Step 2: Live Credit Card Passport Results") 
     prob_output = model.predict_proba(profile_payload) 
-    default_probability = float(prob_output) 
+    
+    # Slice [0, 1] extracts the specific probability for risk (default)
+    default_probability = float(prob_output[0, 1]) 
+    
     non_default_probability = 1.0 - default_probability 
     health_score = int(300 + (non_default_probability * 600)) 
     risk_level_pct = default_probability * 100 
+    # ===================================================================== 
     
     if health_score >= 750: 
         badge_status = "EXCELLENT FINANCIAL HEALTH" 
